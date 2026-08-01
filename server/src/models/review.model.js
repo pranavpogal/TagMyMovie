@@ -10,7 +10,21 @@ const reviewSchema = mongoose.Schema(
     },
     content: {
       type: String,
-      required: true,
+      trim: true,
+      default: "",
+      maxlength: 2000,
+    },
+    rating: {
+      type: Number,
+      min: 1,
+      max: 10,
+      validate: {
+        validator: (value) =>
+          value === null ||
+          value === undefined ||
+          Number.isInteger(value * 2),
+        message: "rating must use half-point steps",
+      },
     },
     mediaType: {
       type: String,

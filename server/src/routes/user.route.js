@@ -5,6 +5,7 @@ import userController from "../controllers/user.controller.js";
 import requestHandler from "../handlers/request.handler.js";
 import userModel from "../models/user.model.js";
 import tokenMiddleware from "../middlewares/token.middleware.js";
+import preferenceController from "../controllers/preference.controller.js";
 
 const router = express.Router();
 
@@ -87,6 +88,24 @@ router.put(
 );
 
 router.get("/info", tokenMiddleware.auth, userController.getInfo);
+
+router.get(
+  "/preferences",
+  tokenMiddleware.auth,
+  preferenceController.get
+);
+
+router.put(
+  "/preferences",
+  tokenMiddleware.auth,
+  preferenceController.update
+);
+
+router.post(
+  "/preferences/reset",
+  tokenMiddleware.auth,
+  preferenceController.reset
+);
 
 router.get(
   "/favourites",

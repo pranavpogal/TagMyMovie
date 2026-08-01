@@ -3,6 +3,13 @@ import { body } from "express-validator";
 import reviewController from "../controllers/review.controller.js";
 import tokenMiddleware from "../middlewares/token.middleware.js";
 import requestHandler from "../handlers/request.handler.js";
+import { normalizeReviewPayload } from "../validators/review.validator.js";
+
+const reviewPayloadValidation = ({ partial = false } = {}) =>
+  body().custom((_, { req }) => {
+    normalizeReviewPayload(req.body, { partial });
+    return true;
+  });
 
 const router = express.Router({ mergeParams: true });
 
@@ -14,11 +21,7 @@ router.post(
   body("mediaId")
     .exists()
     .withMessage("mediaId is required"),
-  body("content")
-    .exists()
-    .withMessage("content is required")
-    .isLength({ min: 1 })
-    .withMessage("content can not be empty"),
+  reviewPayloadValidation(),
   body("mediaType")
     .exists()
     .withMessage("mediaType is required")
@@ -28,6 +31,14 @@ router.post(
   body("mediaPoster").exists().withMessage("mediaPoster is required"),
   requestHandler.validate,
   reviewController.create
+);
+
+router.put(
+  "/:reviewId",
+  tokenMiddleware.auth,
+  reviewPayloadValidation({ partial: true }),
+  requestHandler.validate,
+  reviewController.update
 );
 
 router.delete("/:reviewId", tokenMiddleware.auth, reviewController.remove);

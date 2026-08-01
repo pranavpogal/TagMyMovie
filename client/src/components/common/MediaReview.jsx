@@ -3,6 +3,7 @@ import {
   Box,
   Button,
   Divider,
+  Rating,
   Stack,
   TextField,
   Typography,
@@ -10,6 +11,8 @@ import {
 import { useEffect, useState } from "react";
 import SendOutlinedIcon from "@mui/icons-material/SendOutlined";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
+import SaveIcon from "@mui/icons-material/Save";
 import { toast } from "react-toastify";
 import dayjs from "dayjs";
 import { useSelector } from "react-redux";
@@ -17,10 +20,15 @@ import Container from "./Container";
 import reviewApi from "../../api/modules/review.api";
 import TextAvatar from "./TextAvatar";
 
-const ReviewItem = ({ review, onRemoved }) => {
+const ratingLabel = (value) => `${value} out of 10`;
+
+const ReviewItem = ({ review, onRemoved, onUpdated }) => {
   const { user } = useSelector((state) => state.user);
 
   const [onRequest, setOnRequest] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [content, setContent] = useState(review.content || "");
+  const [rating, setRating] = useState(review.rating ?? null);
 
   const onRemove = async () => {
     if (onRequest) return;
@@ -31,6 +39,27 @@ const ReviewItem = ({ review, onRemoved }) => {
 
     if (err) return toast.error(err.message);
     if (response) onRemoved(review.id);
+  };
+
+  const onUpdate = async () => {
+    if (!content.trim() && rating === null) {
+      return toast.error("Add review text or a rating");
+    }
+
+    setOnRequest(true);
+    const { response, err } = await reviewApi.update({
+      reviewId: review.id,
+      content,
+      rating,
+    });
+    setOnRequest(false);
+
+    if (err) return toast.error(err.message);
+    if (response) {
+      onUpdated(response);
+      setEditing(false);
+      toast.success("Review updated");
+    }
   };
 
   return (
@@ -56,25 +85,86 @@ const ReviewItem = ({ review, onRemoved }) => {
               {dayjs(review.createdAt).format("DD-MM-YYYY HH:mm:ss")}
             </Typography>
           </Stack>
-          <Typography variant="body1" textAlign="justify">
-            {review.content}
-          </Typography>
+          {editing ? (
+            <Stack spacing={2}>
+              <Rating
+                name={`edit-rating-${review.id}`}
+                value={rating}
+                onChange={(_, value) => setRating(value)}
+                precision={0.5}
+                max={10}
+                getLabelText={ratingLabel}
+              />
+              <TextField
+                value={content}
+                onChange={(event) => setContent(event.target.value)}
+                multiline
+                minRows={3}
+                inputProps={{ maxLength: 2000 }}
+                label="Review (optional when rated)"
+              />
+              <Stack direction="row" spacing={1}>
+                <LoadingButton
+                  variant="contained"
+                  startIcon={<SaveIcon />}
+                  onClick={onUpdate}
+                  loading={onRequest}
+                >
+                  save
+                </LoadingButton>
+                <Button
+                  onClick={() => {
+                    setContent(review.content || "");
+                    setRating(review.rating ?? null);
+                    setEditing(false);
+                  }}
+                >
+                  cancel
+                </Button>
+              </Stack>
+            </Stack>
+          ) : (
+            <>
+              {review.rating !== null && review.rating !== undefined && (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Rating
+                    value={review.rating}
+                    precision={0.5}
+                    max={10}
+                    readOnly
+                    getLabelText={ratingLabel}
+                  />
+                  <Typography variant="body2">{review.rating}/10</Typography>
+                </Stack>
+              )}
+              {review.content && (
+                <Typography variant="body1" textAlign="justify">
+                  {review.content}
+                </Typography>
+              )}
+            </>
+          )}
           {user && user.id === review.user.id && (
-            <LoadingButton
-              variant="contained"
-              startIcon={<DeleteIcon />}
-              onClick={onRemove}
-              loading={onRequest}
-              loadingPosition="start"
-              sx={{
-                position: { xs: "relative", md: "absolute" },
-                right: { xs: 0, md: "10px" },
-                marginTop: { xs: 2, md: 0 },
-                width: "max-content",
-              }}
-            >
-              remove
-            </LoadingButton>
+            <Stack direction="row" spacing={1} sx={{ width: "max-content" }}>
+              {!editing && (
+                <Button
+                  variant="outlined"
+                  startIcon={<EditIcon />}
+                  onClick={() => setEditing(true)}
+                >
+                  edit
+                </Button>
+              )}
+              <LoadingButton
+                variant="contained"
+                startIcon={<DeleteIcon />}
+                onClick={onRemove}
+                loading={onRequest}
+                loadingPosition="start"
+              >
+                remove
+              </LoadingButton>
+            </Stack>
           )}
         </Stack>
       </Stack>
@@ -89,6 +179,7 @@ const MediaReview = ({ reviews, media, mediaType }) => {
   const [page, setPage] = useState(1);
   const [onRequest, setOnRequest] = useState(false);
   const [content, setContent] = useState("");
+  const [rating, setRating] = useState(null);
   const [reviewCount, setReviewCount] = useState(0);
 
   const skip = 4;
@@ -102,6 +193,9 @@ const MediaReview = ({ reviews, media, mediaType }) => {
 
   const onAddReview = async () => {
     if (onRequest) return;
+    if (!content.trim() && rating === null) {
+      return toast.error("Add review text or a rating");
+    }
     setOnRequest(true);
 
     const body = {
@@ -110,6 +204,7 @@ const MediaReview = ({ reviews, media, mediaType }) => {
       mediaType,
       mediaTitle: media.title || media.name,
       mediaPoster: media.poster_path,
+      rating,
     };
 
     const { response, err } = await reviewApi.add(body);
@@ -122,8 +217,19 @@ const MediaReview = ({ reviews, media, mediaType }) => {
       setListReviews([response, ...listReviews]);
       setReviewCount(reviewCount + 1);
       setContent("");
+      setRating(null);
     }
   };
+
+  const onUpdated = (updatedReview) => {
+    const updateReview = (review) =>
+      review.id === updatedReview.id ? updatedReview : review;
+    setListReviews((current) => current.map(updateReview));
+    setFilteredReviews((current) => current.map(updateReview));
+  };
+
+  const hasCurrentUserReview =
+    user && listReviews.some((review) => review.user?.id === user.id);
 
   const onLoadMore = () => {
     setFilteredReviews([
@@ -153,7 +259,11 @@ const MediaReview = ({ reviews, media, mediaType }) => {
         <Stack spacing={4} marginBottom={2}>
           {filteredReviews.map((item) => (
             <Box key={item.id}>
-              <ReviewItem review={item} onRemoved={onRemoved} />
+              <ReviewItem
+                review={item}
+                onRemoved={onRemoved}
+                onUpdated={onUpdated}
+              />
               <Divider
                 sx={{
                   display: { xs: "block", md: "none" },
@@ -165,7 +275,7 @@ const MediaReview = ({ reviews, media, mediaType }) => {
             <Button onClick={onLoadMore}>Load More</Button>
           )}
         </Stack>
-        {user && (
+        {user && !hasCurrentUserReview && (
           <>
             <Divider />
             <Stack spacing={2} direction="row">
@@ -174,6 +284,20 @@ const MediaReview = ({ reviews, media, mediaType }) => {
                 <Typography variant="h6" fontWeight="700">
                   {user.displayName}
                 </Typography>
+                <Stack spacing={0.5}>
+                  <Typography component="label" htmlFor="new-review-rating">
+                    Your rating (optional)
+                  </Typography>
+                  <Rating
+                    id="new-review-rating"
+                    name="new-review-rating"
+                    value={rating}
+                    onChange={(_, value) => setRating(value)}
+                    precision={0.5}
+                    max={10}
+                    getLabelText={ratingLabel}
+                  />
+                </Stack>
                 <TextField
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
@@ -181,6 +305,8 @@ const MediaReview = ({ reviews, media, mediaType }) => {
                   rows={4}
                   placeholder="Write your review"
                   variant="outlined"
+                  label="Review (optional when rated)"
+                  inputProps={{ maxLength: 2000 }}
                 />
                 <LoadingButton
                   variant="contained"

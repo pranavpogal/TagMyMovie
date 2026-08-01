@@ -11,6 +11,7 @@ coverage/
 *.bak
 
 server/cache/
+server/migration-backups/
 server/check-pwd.js
 server/check-user.js
 server/force-pwd.js

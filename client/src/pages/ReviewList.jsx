@@ -1,6 +1,6 @@
 import DeleteIcon from "@mui/icons-material/Delete";
 import { LoadingButton } from "@mui/lab";
-import { Box, Button, Divider, Stack, Typography } from "@mui/material";
+import { Box, Button, Divider, Rating, Stack, Typography } from "@mui/material";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 import { useDispatch } from "react-redux";
@@ -79,7 +79,19 @@ const ReviewItem = ({ review, onRemoved }) => {
           <Typography variant="caption">
             {dayjs(review.createdAt).format("DD-MM-YYYY HH:mm:ss")}
           </Typography>
-          <Typography>{review.content}</Typography>
+          {review.rating !== null && review.rating !== undefined && (
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Rating
+                value={review.rating}
+                precision={0.5}
+                max={10}
+                readOnly
+                getLabelText={(value) => `${value} out of 10`}
+              />
+              <Typography variant="body2">{review.rating}/10</Typography>
+            </Stack>
+          )}
+          {review.content && <Typography>{review.content}</Typography>}
         </Stack>
       </Box>
 

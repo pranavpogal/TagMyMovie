@@ -105,6 +105,7 @@ The server now uses `node index.js` for its normal `start` script and retains `n
 - The project has no application-specific automated tests yet. Test infrastructure and comprehensive backend, frontend, and Python coverage are assigned to the testing phase.
 - The local TMDB filesystem cache depends on the server process working directory. It remains a development fallback and must not be reused as the ML catalogue.
 - JWTs are stored in browser local storage by the existing application. The recommendation work will preserve authentication compatibility; a broader authentication hardening effort is outside Phase 1.
+- The legacy JWT dependency chain fails under Node 25 because that runtime removed an API used by a transitive package. The Express server declares support for Node 18 through Node 24; its module graph was successfully smoke-tested with Node 24. A later controlled dependency upgrade should remove this upper bound.
 
 ## Not implemented yet
 
@@ -223,3 +224,97 @@ These are intentionally deferred because their product actions do not exist yet:
 - `recommendation_impression`: recommendation-impression batch phase
 
 No collaborative model is trained in Phase 2.
+
+## Phase 3: ratings and explicit preferences
+
+### Review ratings and updates
+
+Reviews now support an optional `rating` from `1.0` through `10.0` in half-point steps. Existing reviews without ratings remain valid. Review text is trimmed, limited to 2,000 characters, and is optional when a rating is supplied.
+
+The accepted combinations are:
+
+| Text | Rating | Accepted |
+| --- | --- | --- |
+| Present | Present | Yes |
+| Present | Absent | Yes |
+| Absent | Present | Yes (rating-only review) |
+| Absent | Absent | No |
+
+The backend validates the payload independently of the UI. The Mongoose schema repeats the range and half-step constraints as a second line of defence.
+
+Review endpoints are:
+
+```text
+POST   /api/v1/reviews
+PUT    /api/v1/reviews/:reviewId
+DELETE /api/v1/reviews/:reviewId
+```
+
+The update route only permits the authenticated owner to edit a review. It accepts text, rating, or both, and validates the final stored document so an update cannot leave both fields empty.
+
+The application enforces one review per:
+
+```text
+user + mediaType + mediaId
+```
+
+It rejects a second create request and directs the user to update the existing review. A unique database index has deliberately not been added yet because the configured MongoDB hostname could not be resolved during the read-only duplicate audit. Adding that index without inspecting existing data could fail deployment or conceal existing duplicates.
+
+The dry-run command is:
+
+```bash
+cd server
+npm run audit:review-duplicates
+```
+
+After reviewing the dry-run counts, explicit deduplication can be invoked with:
+
+```bash
+node scripts/dedupe-reviews.js --apply --confirm-deduplicate-reviews
+```
+
+The utility keeps the most recently updated record in each compound-identity group. Before deletion it writes a permission-restricted JSON backup under the ignored `server/migration-backups/` directory. The backup contains private review data and must not be committed or shared. A unique compound index should be added only after a successful zero-duplicate audit.
+
+Successful review creation emits `review_create`. Creating or updating a rating emits `rating_submit` with the validated rating value. Successful review edits emit `review_update`. These remain best-effort secondary analytics and cannot make review operations fail.
+
+### Rating UI
+
+The media-detail review form provides a labelled Material UI rating control with ten stars and half-step precision. Users may submit review text, a rating, or both. A user who already reviewed the compound movie/TV identity sees their existing review rather than another creation form and can edit or remove it. Review cards and the profile review list display the numeric score and a read-only accessible rating control.
+
+### User preferences
+
+Phase 3 adds a one-to-one `UserPreference` document containing:
+
+```text
+user
+preferredGenreIds
+preferredLanguages
+favouriteSeedMedia
+preferredReleasePeriods
+excludePreviouslyFavourited
+excludePreviouslyRated
+onboardingCompleted
+onboardingSkipped
+createdAt
+updatedAt
+```
+
+Genre IDs are positive integers. Languages are normalized lowercase two- or three-letter codes. Seed media use the compound `mediaType + mediaId` identity and reject duplicates. Preference arrays are bounded, unknown fields are rejected, and completion/skip flags are kept mutually exclusive.
+
+Protected preference endpoints are:
+
+```text
+GET  /api/v1/user/preferences
+PUT  /api/v1/user/preferences
+POST /api/v1/user/preferences/reset
+```
+
+The reset endpoint requires:
+
+```json
+{ "confirm": true }
+```
+
+Reset removes the explicit preference document so defaults are recreated on the next read. It does not delete the user, reviews, favourites, or interaction history. Consequently, later content profiles may still learn from interaction-derived preferences after an explicit-preference reset; this distinction is returned as `interactionHistoryCleared: false`.
+
+The onboarding and preference-editing UI remains assigned to its later frontend phase. Phase 3 establishes the validated storage and API contracts only.
