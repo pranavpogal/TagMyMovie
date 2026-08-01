@@ -103,6 +103,8 @@ def test_generates_independent_pools_and_merges_compound_keys_with_provenance() 
         "popularity": 90.0,
         "seed_similarity": 0.8,
     }
+    assert set(shared.normalized_scores) == set(shared.source_models)
+    assert result.normalization_version == "tied-rank-percentile-v1"
     assert result.collaborative_confidence == 0.4
     assert vector_store.calls == [((1.0, 0.0), 150, 300), ((0.0, 1.0), 150, 300)]
 

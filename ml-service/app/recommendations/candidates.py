@@ -7,6 +7,10 @@ from typing import Any, Iterable, Mapping
 
 from app.config import CandidateGenerationSettings
 from app.content.vector_store import VectorSearchResult, VectorStore
+from app.recommendations.normalization import (
+    NORMALIZATION_VERSION,
+    normalize_candidate_scores,
+)
 
 
 SOURCE_CONTENT = "content"
@@ -30,6 +34,7 @@ class Candidate:
     source_models: tuple[str, ...]
     raw_scores: Mapping[str, float] = field(default_factory=dict)
     metadata: Mapping[str, Any] = field(default_factory=dict)
+    normalized_scores: Mapping[str, float] = field(default_factory=dict)
 
     @property
     def item_key(self) -> str:
@@ -46,6 +51,7 @@ class CandidateGenerationResult:
     merged: tuple[Candidate, ...]
     collaborative_confidence: float
     collaborative_fallback_reason: str | None
+    normalization_version: str = NORMALIZATION_VERSION
 
 
 class CandidateGenerationService:
@@ -101,13 +107,14 @@ class CandidateGenerationService:
         )
         seed_similarity = self._seed_candidates(seed_item_key)
         pools = (content, collaborative, popularity, preferences, seed_similarity)
+        merged = merge_candidate_pools(*pools)
         return CandidateGenerationResult(
             content=content,
             collaborative=collaborative,
             popularity=popularity,
             preferences=preferences,
             seed_similarity=seed_similarity,
-            merged=merge_candidate_pools(*pools),
+            merged=normalize_candidate_scores(merged),
             collaborative_confidence=collaborative_result.collaborative_confidence,
             collaborative_fallback_reason=collaborative_result.fallback_reason,
         )
@@ -161,6 +168,10 @@ def merge_candidate_pools(*pools: Iterable[Candidate]) -> tuple[Candidate, ...]:
                 media_id=current.media_id,
                 source_models=sources,
                 raw_scores={**current.raw_scores, **candidate.raw_scores},
+                normalized_scores={
+                    **current.normalized_scores,
+                    **candidate.normalized_scores,
+                },
                 metadata={**current.metadata, **candidate.metadata},
             )
     return tuple(merged.values())
@@ -184,6 +195,7 @@ def _candidate(
         media_id=str(media_id),
         source_models=(source,),
         raw_scores={source: numeric_score},
+        normalized_scores={},
         metadata=metadata or {},
     )
 

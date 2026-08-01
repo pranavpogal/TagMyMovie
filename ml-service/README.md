@@ -96,7 +96,9 @@ Collaborative confidence is inactive below three mapped items, then moves throug
 
 The candidate generator independently requests up to 150 content-profile matches, 150 ALS recommendations, 40 vote-qualified popularity titles, and 40 titles matching explicit genre/language/release-period preferences. A media-detail request can additionally request 150 titles similar to the current compound item. A cold profile or missing seed embedding returns an empty corresponding pool without preventing the other configured pools from contributing.
 
-Pools merge strictly by `mediaType:tmdbId`; movie and TV identifiers cannot collide. Each merged candidate retains ordered `source_models`, source-specific raw scores, and catalogue metadata. Raw content, ALS, and catalogue scores intentionally remain unblended until Phase 17 normalization.
+Pools merge strictly by `mediaType:tmdbId`; movie and TV identifiers cannot collide. Each merged candidate retains ordered `source_models`, source-specific raw scores, normalized scores, and catalogue metadata.
+
+Normalization uses tied rank percentiles independently within each source. Higher scores map toward 1 and lower scores toward 0 without comparing raw cosine, ALS, or popularity scales. Ties share their average rank, an all-equal multi-item pool receives neutral 0.5 scores, a one-item pool receives 1, and missing/invalid source scores remain absent. Normalized scores are still not blended or ranked until Phase 18.
 
 ## Tests
 

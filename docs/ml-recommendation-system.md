@@ -1183,3 +1183,34 @@ Each candidate retains a separate `raw_scores` entry for every contributing sour
 ### Phase boundary
 
 Phase 16 produces deduplicated, provenance-rich candidate sets. Content similarity, ALS, and catalogue scores are still on different scales; deterministic normalization and its edge cases begin in Phase 17.
+
+## Phase 17: score normalization
+
+### Tied rank percentiles
+
+TagMyMovie uses versioned `tied-rank-percentile-v1` normalization independently for every candidate source. For a source with `N > 1` finite scores, candidates are ordered from higher raw score to lower raw score. Each candidate receives:
+
+```text
+normalized = 1 - average_zero_based_rank / (N - 1)
+```
+
+Equal raw values occupy the same average rank. The resulting finite value is always in `[0, 1]`, with the strongest distinct value toward 1 and the weakest toward 0. Compound item key is used only as a deterministic tie-ordering key; it does not break a score tie or change the shared average rank.
+
+Rank percentiles were selected because they preserve within-source ordering without assuming compatible distributions or numeric ranges. A cosine value of `0.8`, ALS value of `25`, and popularity value of `500` are never compared directly. Extreme positive and negative finite ALS values affect order only, not magnitude after normalization.
+
+### Explicit edge-case policy
+
+- Empty source output produces no normalized scores.
+- A single finite candidate receives `1.0` for that source.
+- A multi-item source in which every score is equal receives neutral `0.5` for every item.
+- Tied subsets receive the percentile of their average rank.
+- A missing collaborative or other source score remains absent; it is not fabricated as zero.
+- Non-numeric, NaN, and infinite values are excluded from that source's normalization.
+- Raw scores remain unchanged alongside the new per-source `normalized_scores` mapping for traceability.
+- Candidate order does not affect the score assigned to a compound item.
+
+Candidate generation normalizes only after all independent pools are merged, ensuring each source sees its complete valid pool and duplicate items retain every source score.
+
+### Phase boundary
+
+Phase 17 makes heterogeneous source signals comparable on a bounded scale. It does not choose blending weights, calculate final ranking features, or sort a recommendation response; hybrid ranking begins in Phase 18.
