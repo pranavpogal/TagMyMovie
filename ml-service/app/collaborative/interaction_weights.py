@@ -6,6 +6,7 @@ from typing import Any
 
 
 WEIGHT_VERSION = "interaction-weights-v1"
+COLLABORATIVE_CONFIDENCE_VERSION = "implicit-confidence-v1"
 
 POSITIVE_EVENT_WEIGHTS: dict[str, float] = {
     "detail_view": 0.20,
@@ -25,6 +26,15 @@ NEGATIVE_EVENT_WEIGHTS: dict[str, float] = {
 WEAK_POSITIVE_EVENTS = frozenset(
     {"detail_view", "search_click", "recommendation_click", "trailer_play"}
 )
+
+COLLABORATIVE_POSITIVE_WEIGHTS: dict[str, float] = {
+    "detail_view": 0.10,
+    "search_click": 0.30,
+    "recommendation_click": 0.75,
+    "trailer_play": 1.00,
+    "favourite_add": 4.00,
+    "onboarding_favourite": 4.00,
+}
 
 
 @dataclass(frozen=True)
@@ -58,6 +68,13 @@ def base_interaction_weight(event_type: str, value: Any = None) -> float:
     return POSITIVE_EVENT_WEIGHTS.get(
         event_type, NEGATIVE_EVENT_WEIGHTS.get(event_type, 0.0)
     )
+
+
+def collaborative_confidence(event_type: str, value: Any = None) -> float:
+    if event_type == "rating_submit":
+        weight = rating_weight(value)
+        return weight if weight > 0 else 0.0
+    return COLLABORATIVE_POSITIVE_WEIGHTS.get(event_type, 0.0)
 
 
 def recency_multiplier(

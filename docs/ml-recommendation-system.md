@@ -821,3 +821,77 @@ PROFILE_NEGATIVE_CENTROID_SCALE=0.35
 ### Phase boundary
 
 Phase 10 builds an in-memory content query vector but does not yet generate candidates or train a collaborative model. Interaction aggregation for the collaborative sparse matrix begins in Phase 11; content candidate generation remains in its later assigned phase.
+
+## Phase 11: collaborative-filtering dataset
+
+### Source validation and identity
+
+Run the offline dataset build with:
+
+```bash
+cd ml-service
+python -m jobs.build_interaction_matrix
+```
+
+The job reads MongoDB without deleting or rewriting source interactions. Every record must have a user, valid movie/TV identity, and datetime timestamp. The referenced user must still exist in `users`, and the exact compound identity must exist in `media_catalog`. Consequently, `movie:603` and `tv:603` are distinct matrix columns.
+
+Pure recommendation impressions, negative/neutral signals, malformed records, unresolved/deleted users, unresolved catalogue items, and exact duplicate analytics records do not become positive entries. Exact duplicates are identified from user, compound item, event, value, timestamp, session, and recommendation identifiers. Only the latest rating, favourite add/remove state, and onboarding-favourite state per user/item are used.
+
+### Implicit confidence
+
+The centralized `implicit-confidence-v1` weights are:
+
+| Positive evidence | Confidence |
+| --- | ---: |
+| Detail view | 0.10 |
+| Search click | 0.30 |
+| Recommendation click | 0.75 |
+| Trailer play | 1.00 |
+| Rating 7.0–8.5 | 2.00 |
+| Rating 9.0–10.0 | 3.00 |
+| Favourite added | 4.00 |
+| Onboarding favourite | 4.00 |
+
+Ratings from 1 through 5, favourite removals, and not-interested events contribute zero positive ALS confidence. Those records remain available for later exclusions and ranking penalties.
+
+Each retained event first receives time decay:
+
+```text
+effective = base_confidence × CF_RECENCY_DECAY_FACTOR ^ days_since_event
+```
+
+For each user/item pair, weak events (views, clicks, and trailer plays) use logarithmic saturation, while strong rating/favourite evidence remains linear:
+
+```text
+weak = min(CF_WEAK_CONFIDENCE_CAP, log1p(sum(effective_weak)))
+confidence = min(CF_MAX_CONFIDENCE, sum(effective_strong) + weak)
+```
+
+Defaults are decay `0.98`, weak cap `2.0`, and total cap `10.0`. This prevents repeated low-value views from behaving like unlimited explicit preference.
+
+### Sparse matrix and artifacts
+
+Users with fewer than `CF_MIN_USER_ITEMS=2` distinct positive items are excluded from this training/evaluation dataset and reported as weak users. Remaining user IDs and compound item keys are sorted lexicographically before assigning indexes, producing stable mappings for the same input identities. The output is a float32 SciPy CSR user-item matrix.
+
+Each successful build writes:
+
+- A generation-specific compressed matrix (`interaction-matrix-<generation>.npz`).
+- A generation-specific JSON mapping containing user/item arrays and both ID-to-index maps.
+- `dataset-manifest.json` with shape, non-zero count, versions, summary, and active artifact names.
+
+Matrix and mapping files are completed first; the manifest is atomically replaced last. A failed build therefore does not destroy or activate over the previous working generation. Generated artifacts remain ignored by Git.
+
+Configuration:
+
+```text
+CF_ARTIFACT_DIRECTORY=artifacts/collaborative
+CF_MATRIX_VERSION=interaction-matrix-v1
+CF_RECENCY_DECAY_FACTOR=0.98
+CF_WEAK_CONFIDENCE_CAP=2.0
+CF_MAX_CONFIDENCE=10.0
+CF_MIN_USER_ITEMS=2
+```
+
+### Phase boundary
+
+Phase 11 builds and persists the validated dataset and stable mappings only. It does not fit latent factors or produce recommendations; implicit ALS training begins in Phase 12.

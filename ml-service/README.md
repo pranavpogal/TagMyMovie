@@ -52,6 +52,16 @@ For Atlas, create the search index named by `VECTOR_INDEX_NAME` on `media_catalo
 
 Profile behavior is configured with `PROFILE_VERSION`, `RECENCY_DECAY_FACTOR`, `PROFILE_WEAK_POSITIVE_CAP`, and `PROFILE_NEGATIVE_CENTROID_SCALE`.
 
+## Build the collaborative dataset
+
+```bash
+python -m jobs.build_interaction_matrix
+```
+
+The offline job resolves interactions against existing users and compound catalogue identities, removes invalid/duplicate records, aggregates only positive implicit confidence with decay and saturation, filters users below the configured minimum item count, and writes a SciPy CSR user-item matrix. Generation-specific matrix and mapping files are activated through an atomically replaced manifest, preserving the previous usable dataset if a build fails.
+
+Negative ratings, favourite removals, not-interested events, and pure impressions remain in MongoDB but are not positive ALS entries. They are reserved for later exclusion and ranking logic.
+
 ## Tests
 
 ```bash

@@ -7,6 +7,7 @@ import pytest
 from app.collaborative.interaction_weights import (
     WEIGHT_VERSION,
     base_interaction_weight,
+    collaborative_confidence,
     rating_weight,
     recency_multiplier,
     weighted_signal,
@@ -27,6 +28,11 @@ def test_base_weights_and_version_are_stable() -> None:
     assert base_interaction_weight("favourite_add") == 4
     assert base_interaction_weight("not_interested") == -4
     assert base_interaction_weight("recommendation_impression") == 0
+    assert collaborative_confidence("detail_view") == 0.1
+    assert collaborative_confidence("search_click") == 0.3
+    assert collaborative_confidence("rating_submit", 9) == 3
+    assert collaborative_confidence("rating_submit", 4) == 0
+    assert collaborative_confidence("not_interested") == 0
 
 
 def test_recency_decay_uses_fractional_days_and_never_boosts_future_events() -> None:

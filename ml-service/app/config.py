@@ -135,6 +135,51 @@ class ProfileSettings:
             )
 
 
+@dataclass(frozen=True)
+class CollaborativeDatasetSettings:
+    mongodb_url: str
+    mongodb_database: str
+    artifact_directory: Path
+    matrix_version: str
+    decay_factor: float
+    weak_confidence_cap: float
+    max_confidence: float
+    minimum_user_items: int
+
+    @classmethod
+    def from_env(cls) -> "CollaborativeDatasetSettings":
+        settings = cls(
+            mongodb_url=os.getenv("MONGODB_URL", "").strip(),
+            mongodb_database=os.getenv("MONGODB_DATABASE", "tagmymovie").strip(),
+            artifact_directory=Path(
+                os.getenv("CF_ARTIFACT_DIRECTORY", "artifacts/collaborative")
+            ).expanduser(),
+            matrix_version=os.getenv(
+                "CF_MATRIX_VERSION", "interaction-matrix-v1"
+            ).strip(),
+            decay_factor=_float("CF_RECENCY_DECAY_FACTOR", 0.98, 0.000001),
+            weak_confidence_cap=_float("CF_WEAK_CONFIDENCE_CAP", 2.0, 0.000001),
+            max_confidence=_float("CF_MAX_CONFIDENCE", 10.0, 0.000001),
+            minimum_user_items=_integer("CF_MIN_USER_ITEMS", 2, 1),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.mongodb_url:
+            raise ConfigurationError("MONGODB_URL is required")
+        if not self.mongodb_database:
+            raise ConfigurationError("MONGODB_DATABASE is required")
+        if not self.matrix_version:
+            raise ConfigurationError("CF_MATRIX_VERSION is required")
+        if self.decay_factor > 1:
+            raise ConfigurationError("CF_RECENCY_DECAY_FACTOR must be at most one")
+        if self.weak_confidence_cap > self.max_confidence:
+            raise ConfigurationError(
+                "CF_WEAK_CONFIDENCE_CAP must not exceed CF_MAX_CONFIDENCE"
+            )
+
+
 def _integer(name: str, default: int, minimum: int = 0) -> int:
     raw = os.getenv(name)
     try:

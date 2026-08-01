@@ -4,6 +4,7 @@ import pytest
 
 from app.config import (
     ConfigurationError,
+    CollaborativeDatasetSettings,
     EmbeddingSettings,
     FeatureTextSettings,
     ProfileSettings,
@@ -103,3 +104,17 @@ def test_profile_settings_are_configurable_and_bounded(
     monkeypatch.setenv("PROFILE_NEGATIVE_CENTROID_SCALE", "1.1")
     with pytest.raises(ConfigurationError, match="at most one"):
         ProfileSettings.from_env()
+
+
+def test_collaborative_dataset_settings_validate_confidence_caps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MONGODB_URL", "mongodb://localhost/tagmymovie")
+    settings = CollaborativeDatasetSettings.from_env()
+    assert settings.minimum_user_items == 2
+    assert settings.weak_confidence_cap == 2
+
+    monkeypatch.setenv("CF_WEAK_CONFIDENCE_CAP", "11")
+    monkeypatch.setenv("CF_MAX_CONFIDENCE", "10")
+    with pytest.raises(ConfigurationError, match="must not exceed"):
+        CollaborativeDatasetSettings.from_env()
