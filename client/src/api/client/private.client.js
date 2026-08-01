@@ -1,10 +1,9 @@
 import axios from "axios";
 import queryString from "query-string";
-
-const baseURL = "http://localhost:5001/api/v1/";
+import apiConfigs from "../configs/api.configs";
 
 const privateClient = axios.create({
-  baseURL,
+  baseURL: apiConfigs.baseUrl,
   paramsSerializer: {
     encode: (params) => queryString.stringify(params),
   },

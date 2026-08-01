@@ -77,13 +77,17 @@ const getDetail = async (req, res) => {
     if (tokenDecoded) {
       const user = await userModel.findById(tokenDecoded.data);
       if (user) {
-        const isFavourite = await favouriteModel.findOne({ user: user.id, mediaId });
+        const isFavourite = await favouriteModel.findOne({
+          user: user.id,
+          mediaId,
+          mediaType,
+        });
         media.isFavourite = isFavourite !== null;
       }
     }
 
     media.reviews = await reviewModel
-      .find({ mediaId })
+      .find({ mediaId, mediaType })
       .populate("user")
       .sort("-createdAt")
       .catch(() => []);

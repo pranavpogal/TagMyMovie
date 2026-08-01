@@ -27,7 +27,12 @@ const FavouriteItem = ({ media, onRemoved }) => {
     if (err) toast.error(err.message);
     if (response) {
       toast.success("Removed from favourites");
-      dispatch(removeFavourite({ mediaId: media.mediaId }));
+      dispatch(
+        removeFavourite({
+          mediaId: media.mediaId,
+          mediaType: media.mediaType,
+        })
+      );
       onRemoved(media.id);
     }
   };

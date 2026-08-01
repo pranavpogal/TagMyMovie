@@ -45,7 +45,7 @@ const ReviewItem = ({ review, onRemoved }) => {
     >
       <Box sx={{ width: { xs: 0, md: "10%" } }}>
         <Link
-          to={routesGen.mediaDetail(review.mediaId, review.mediaType)}
+          to={routesGen.mediaDetail(review.mediaType, review.mediaId)}
           style={{ textDecoration: "none", color: "unset" }}
         >
           <Box
@@ -66,7 +66,7 @@ const ReviewItem = ({ review, onRemoved }) => {
       >
         <Stack spacing={1}>
           <Link
-            to={routesGen.mediaDetail(review.mediaId, review.mediaType)}
+            to={routesGen.mediaDetail(review.mediaType, review.mediaId)}
             style={{ textDecoration: "none", color: "unset" }}
           >
             <Typography
