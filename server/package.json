@@ -3,11 +3,13 @@
   "type": "module",
   "version": "1.0.0",
   "description": "TagMyMovie is a movie review website where users can write reviews about movies they have seen and rate them.",
-  "author": "noobmaster",
+  "author": "Pranav Pogal",
   "main": "index.js",
   "license": "MIT",
   "scripts": {
-    "start": "nodemon index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "test": "node --test tests/*.test.js"
   },
   "dependencies": {
     "axios": "^1.2.3",

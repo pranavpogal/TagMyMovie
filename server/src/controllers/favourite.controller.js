@@ -1,21 +1,39 @@
 import responseHandler from "../handlers/response.handler.js";
 import favouriteModel from "../models/favourite.model.js";
+import { recordInteractionBestEffort } from "../services/interaction.service.js";
 
 const addFavourite = async (req, res) => {
   try {
     const isFavourite = await favouriteModel.findOne({
       user: req.user.id,
       mediaId: req.body.mediaId,
+      mediaType: req.body.mediaType,
     });
 
     if (isFavourite) return responseHandler.ok(res, isFavourite);
 
     const favourite = new favouriteModel({
-      ...req.body,
       user: req.user.id,
+      mediaId: req.body.mediaId,
+      mediaType: req.body.mediaType,
+      mediaTitle: req.body.mediaTitle,
+      mediaPoster: req.body.mediaPoster,
+      mediaRate: req.body.mediaRate,
     });
 
     await favourite.save();
+
+    recordInteractionBestEffort({
+      userId: req.user.id,
+      mediaId: favourite.mediaId,
+      mediaType: favourite.mediaType,
+      eventType: "favourite_add",
+      value: 1,
+      source: "media_detail",
+      recommendationId: req.body.recommendationId,
+      recommendationStrategy: req.body.recommendationStrategy,
+      sessionId: req.body.sessionId,
+    });
 
     responseHandler.created(res, favourite);
   } catch {
@@ -35,6 +53,15 @@ const removeFavourite = async (req, res) => {
     if (!favourite) return responseHandler.notfound(res);
 
     await favourite.deleteOne();
+
+    recordInteractionBestEffort({
+      userId: req.user.id,
+      mediaId: favourite.mediaId,
+      mediaType: favourite.mediaType,
+      eventType: "favourite_remove",
+      value: -1,
+      source: "unknown",
+    });
 
     responseHandler.ok(res);
   } catch {

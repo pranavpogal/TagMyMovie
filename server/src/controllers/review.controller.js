@@ -1,14 +1,28 @@
 import responseHandler from "../handlers/response.handler.js";
 import reviewModel from "../models/review.model.js";
+import { recordInteractionBestEffort } from "../services/interaction.service.js";
 
 const create = async (req, res) => {
   try {
     const review = new reviewModel({
       user: req.user.id,
-      ...req.body,
+      mediaId: req.body.mediaId,
+      mediaType: req.body.mediaType,
+      mediaTitle: req.body.mediaTitle,
+      mediaPoster: req.body.mediaPoster,
+      content: req.body.content,
     });
 
     await review.save();
+
+    recordInteractionBestEffort({
+      userId: req.user.id,
+      mediaId: review.mediaId,
+      mediaType: review.mediaType,
+      eventType: "review_create",
+      value: 1,
+      source: "media_detail",
+    });
 
     responseHandler.created(res, {
       ...review._doc,

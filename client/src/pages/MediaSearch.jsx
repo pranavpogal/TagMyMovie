@@ -5,12 +5,15 @@ import { toast } from "react-toastify"
 import mediaApi from "../api/modules/media.api"
 import MediaGrid from "../components/common/MediaGrid"
 import uiConfigs from "../configs/ui.configs"
+import { useSelector } from "react-redux"
+import interactionApi from "../api/modules/interaction.api"
 
 const mediaTypes = ["movie", "tv", "people"]
 let timer;
 const timeout = 500
 
 const MediaSearch = () => {
+  const { user } = useSelector((state) => state.user)
   const [medias, setMedias] = useState([])
   const [page, setPage] = useState(1)
   const [onSearch, setOnSearch] = useState(false)
@@ -54,6 +57,17 @@ const MediaSearch = () => {
     }, timeout)
   }
 
+  const onMediaClick = (media) => {
+    if (!user || mediaType === "people") return
+
+    interactionApi.record({
+      mediaId: media.id,
+      mediaType,
+      eventType: "search_click",
+      source: "search"
+    })
+  }
+
   return (
     <>
       <Toolbar />
@@ -85,7 +99,11 @@ const MediaSearch = () => {
             autoFocus
           />
 
-          <MediaGrid medias={medias} mediaType={mediaType} />
+          <MediaGrid
+            medias={medias}
+            mediaType={mediaType}
+            onMediaClick={onMediaClick}
+          />
 
           {medias.length > 0 && (
             <LoadingButton

@@ -28,6 +28,7 @@ import PosterSlide from "../components/common/PosterSlide";
 import RecommendSlide from "../components/common/RecommendSlide";
 import MediaSlide from "../components/common/MediaSlide";
 import MediaReview from "../components/common/MediaReview";
+import interactionApi from "../api/modules/interaction.api";
 
 const MediaDetail = () => {
   const { mediaType, mediaId } = useParams();
@@ -64,6 +65,46 @@ const MediaDetail = () => {
 
     getMedia();
   }, [mediaType, mediaId, dispatch]);
+
+  useEffect(() => {
+    if (!user || !media) return;
+
+    interactionApi.record({
+      mediaId: media.id,
+      mediaType,
+      eventType: "detail_view",
+      source: "media_detail",
+    });
+  }, [user, media, mediaType]);
+
+  const onTrailerOpen = () => {
+    videoRef.current?.scrollIntoView();
+    if (!user || !media) return;
+
+    interactionApi.record({
+      mediaId: media.id,
+      mediaType,
+      eventType: "trailer_play",
+      source: "media_detail",
+    });
+  };
+
+  const onRecommendationClick = (recommendedMedia, rank) => {
+    if (!user) return;
+
+    interactionApi.record({
+      mediaId: recommendedMedia.id,
+      mediaType,
+      eventType: "recommendation_click",
+      source: "recommendation",
+      recommendationStrategy: "tmdb_fallback",
+      recommendationRank: rank,
+      metadata: {
+        context: "media_detail",
+        seedMediaId: mediaId,
+      },
+    });
+  };
 
   const onFavouriteClick = async () => {
     if (!user) return dispatch(setAuthModalOpen(true));
@@ -104,8 +145,15 @@ const MediaDetail = () => {
     setOnRequest(true);
 
     const favourite = listFavourites.find(
-      (e) => e.mediaId.toString() === media.id.toString()
+      (e) =>
+        e.mediaType === mediaType &&
+        e.mediaId.toString() === media.id.toString()
     );
+
+    if (!favourite) {
+      setOnRequest(false);
+      return toast.error("Favourite entry could not be found");
+    }
 
     const { response, err } = await favouriteApi.remove({
       favouriteId: favourite.id,
@@ -241,7 +289,7 @@ const MediaDetail = () => {
                     sx={{ width: "max-content" }}
                     size="large"
                     startIcon={<PlayArrowIcon />}
-                    onClick={() => videoRef.current.scrollIntoView()}
+                    onClick={onTrailerOpen}
                   >
                     watch now
                   </Button>
@@ -295,7 +343,11 @@ const MediaDetail = () => {
         {/* media recommendation */}
         <Container header="you may also like">
           {media.recommend && media.recommend.length > 0 && (
-            <RecommendSlide medias={media.recommend} mediaType={mediaType} />
+            <RecommendSlide
+              medias={media.recommend}
+              mediaType={mediaType}
+              onMediaClick={onRecommendationClick}
+            />
           )}
           {(!media.recommend || media.recommend.length === 0) && (
             <MediaSlide

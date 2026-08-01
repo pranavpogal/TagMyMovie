@@ -10,7 +10,7 @@ import CircularRate from "./CircularRate";
 import { useSelector } from "react-redux";
 import favouriteUtils from "../../utils/favourite.utils"
 
-const MediaItem = ({ media, mediaType }) => {
+const MediaItem = ({ media, mediaType, onClick }) => {
     const {listFavourites } = useSelector((state) => state.user);
 
     const [title, setTitle] = useState("")
@@ -31,9 +31,10 @@ const MediaItem = ({ media, mediaType }) => {
 
     return (
       <Link
+        onClick={() => onClick?.(media)}
         to={
           mediaType !== "people"
-            ? routesGen.mediaDetail(mediaType, media.id || media.mediaid)
+            ? routesGen.mediaDetail(mediaType, media.id || media.mediaId)
             : routesGen.person(media.id)
         }
       >
@@ -50,7 +51,11 @@ const MediaItem = ({ media, mediaType }) => {
             {/* movie or tv item */}
             {mediaType !== "people" && (
                 <>
-                    {favouriteUtils.check({ listFavourites, mediaId: media.id }) && (
+                    {favouriteUtils.check({
+                        listFavourites,
+                        mediaId: media.id || media.mediaId,
+                        mediaType,
+                    }) && (
                         <FavoriteIcon
                             color="primary"
                             sx={{
