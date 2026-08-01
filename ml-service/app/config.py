@@ -8,6 +8,19 @@ class ConfigurationError(ValueError):
     """Raised when required pipeline configuration is missing or invalid."""
 
 
+@dataclass(frozen=True)
+class FeatureTextSettings:
+    cast_limit: int
+    keyword_limit: int
+
+    @classmethod
+    def from_env(cls) -> "FeatureTextSettings":
+        return cls(
+            cast_limit=_integer("FEATURE_TEXT_CAST_LIMIT", 10, 1),
+            keyword_limit=_integer("FEATURE_TEXT_KEYWORD_LIMIT", 20, 1),
+        )
+
+
 def _integer(name: str, default: int, minimum: int = 0) -> int:
     raw = os.getenv(name)
     try:

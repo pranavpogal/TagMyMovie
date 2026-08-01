@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.config import ConfigurationError, Settings
+from app.config import ConfigurationError, FeatureTextSettings, Settings
 
 
 def test_settings_reuse_existing_environment_names(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -35,3 +35,13 @@ def test_settings_require_credentials_and_valid_mode(
     monkeypatch.setenv("CATALOGUE_SYNC_MODE", "invalid")
     with pytest.raises(ConfigurationError):
         Settings.from_env()
+
+
+def test_feature_text_limits_are_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEATURE_TEXT_CAST_LIMIT", "8")
+    monkeypatch.setenv("FEATURE_TEXT_KEYWORD_LIMIT", "12")
+
+    settings = FeatureTextSettings.from_env()
+
+    assert settings.cast_limit == 8
+    assert settings.keyword_limit == 12

@@ -631,3 +631,43 @@ The `.env.example` contains empty credential values. The actual `ml-service/.env
 ### Phase boundary
 
 Phase 6 does not generate deterministic feature text, compute hashes, load a sentence transformer, generate embeddings, build FAISS indexes, or expose HTTP inference. Those begin in later phases.
+
+## Phase 7: deterministic feature text
+
+### Text contract
+
+Phase 7 converts each normalized catalogue record into one deterministic, labelled string. Present fields always appear in this order:
+
+```text
+Title
+Type
+Genres
+Original language
+Release year
+Directors (movie) or Creators (TV)
+Cast
+Keywords
+Plot
+```
+
+Every value is normalized to Unicode NFC, leading and trailing whitespace is removed, and internal whitespace is collapsed. Missing optional values are omitted together with their labels, so generated text never contains placeholder values such as `None` or `undefined`. A missing title or invalid media type is rejected.
+
+Genres, directors, creators, and keywords are deduplicated and sorted case-insensitively. Cast is deduplicated while retaining source billing order. Cast and keyword counts are bounded by `FEATURE_TEXT_CAST_LIMIT` (default 10) and `FEATURE_TEXT_KEYWORD_LIMIT` (default 20). Positive limits are required.
+
+### Hash and embedding staleness
+
+The complete normalized feature text is encoded as UTF-8 and hashed with SHA-256. The resulting lowercase hexadecimal digest is the `featureHash` used to decide whether an existing embedding remains reusable.
+
+An embedding requires regeneration when any of these conditions is true:
+
+- The stored feature hash differs from the newly calculated hash.
+- The embedding model or version differs from the requested model or version.
+- The vector is missing or empty.
+- `embeddingDimension` does not equal the vector length.
+- Any vector value is non-numeric or non-finite.
+
+These checks make catalogue metadata changes and model upgrades explicit rather than relying on timestamps.
+
+### Phase boundary
+
+Phase 7 implements deterministic text generation, hashing, staleness checks, configuration, and isolated tests only. It does not load a sentence transformer, calculate or persist embeddings, build a vector index, schedule an embedding job, or expose HTTP inference. Content embeddings begin in Phase 8.
