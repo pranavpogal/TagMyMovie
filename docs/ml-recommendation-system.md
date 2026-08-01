@@ -401,3 +401,108 @@ Changing the environment value changes the desired Mongoose index definition. Ex
 ### Deferred recommendation flows
 
 Homepage personalized impressions and ML-generated media-detail impressions will reuse the same recording service when their recommendation endpoints are implemented. Phase 4 does not add the FastAPI service, hybrid ranking, model artifacts, or personalized homepage UI.
+
+## Phase 5: local media catalogue
+
+### Collection contract
+
+Phase 5 adds the normalized MongoDB collection:
+
+```text
+media_catalog
+```
+
+The explicit collection name prevents Mongoose pluralization from creating a different namespace than the later Python pipeline. Both Express-side validation and future Python ingestion must use this same collection.
+
+Each document contains:
+
+```text
+tmdbId
+mediaType
+title
+originalTitle
+overview
+genres
+genreIds
+originalLanguage
+spokenLanguages
+releaseDate
+releaseYear
+cast
+directors
+creators
+keywords
+popularity
+voteAverage
+voteCount
+posterPath
+backdropPath
+featureText
+featureHash
+embedding
+embeddingDimension
+embeddingModel
+embeddingVersion
+lastSyncedAt
+createdAt
+updatedAt
+```
+
+Movie and TV identities remain distinct through the unique compound index:
+
+```text
+tmdbId + mediaType
+```
+
+This permits `movie:603` and `tv:603` to coexist while rejecting duplicate records for either compound identity.
+
+### Normalized metadata
+
+Genres are stored in both display and filtering forms:
+
+```json
+{
+  "genres": [{ "id": 878, "name": "Science Fiction" }],
+  "genreIds": [878]
+}
+```
+
+The schema rejects duplicate or non-positive normalized genre IDs. Dates are stored as MongoDB dates and release years as numbers. Numeric popularity, vote average, and vote count fields default to zero. Missing optional textual and list metadata use empty strings or arrays instead of values such as `undefined`.
+
+The following filter indexes are defined:
+
+```text
+mediaType
+genreIds
+originalLanguage
+releaseYear
+voteCount
+```
+
+### Embedding placeholders and consistency
+
+Phase 5 defines storage for future content embeddings but does not generate them. New catalogue records may use:
+
+```json
+{
+  "featureText": "",
+  "featureHash": "",
+  "embedding": [],
+  "embeddingDimension": 0,
+  "embeddingModel": null,
+  "embeddingVersion": null
+}
+```
+
+When an embedding is added in the embedding phase, schema validation requires:
+
+- Every vector value to be finite.
+- `embeddingDimension` to match the vector length.
+- `embeddingModel` and `embeddingVersion` to be present.
+- `embeddingDimension` to remain zero while the vector is empty.
+
+This prevents incomplete or dimensionally inconsistent vectors from entering the catalogue. It does not claim that an embedding is normalized; vector normalization is enforced by the later embedding pipeline.
+
+### Phase boundary
+
+Phase 5 adds only the collection model, indexes, consistency validation, tests, and documentation. It does not call TMDB, create catalogue records, generate feature text, calculate hashes, generate embeddings, or build a vector index. Those operations begin with the idempotent Python catalogue-ingestion job in Phase 6.
