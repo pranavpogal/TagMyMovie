@@ -318,3 +318,86 @@ The reset endpoint requires:
 Reset removes the explicit preference document so defaults are recreated on the next read. It does not delete the user, reviews, favourites, or interaction history. Consequently, later content profiles may still learn from interaction-derived preferences after an explicit-preference reset; this distinction is returned as `interactionHistoryCleared: false`.
 
 The onboarding and preference-editing UI remains assigned to its later frontend phase. Phase 3 establishes the validated storage and API contracts only.
+
+## Phase 4: recommendation impression tracking
+
+### RecommendationImpression collection
+
+Phase 4 adds one document per recommendation batch. A batch contains:
+
+```text
+recommendationId
+user
+context
+strategy
+modelVersions
+items
+createdAt
+updatedAt
+```
+
+`recommendationId` is a unique UUID generated on the server. User identity is derived from the authenticated request and is never accepted from the browser.
+
+Context records the page, requested media type, and optional compound seed identity. Every item stores:
+
+```text
+mediaType + mediaId
+rank
+finalScore
+sourceModels
+```
+
+The service rejects duplicate compound items, invalid ranks, non-finite scores, unknown model-version fields, and malformed source provenance. Item lists are limited to 500 entries. Embeddings, private review content, debug feature vectors, and raw ranking-feature payloads are never stored in impression documents.
+
+Model-version fields are present for:
+
+```text
+embedding
+collaborative
+profile
+ranking
+diversity
+```
+
+They remain `null` for the current TMDB fallback because no local ML models exist yet. Similarly, `finalScore` is stored as `null`; the system does not fabricate scores for TMDB results.
+
+### Existing media-detail integration
+
+For an authenticated media-detail request with TMDB recommendations, Express now:
+
+1. Removes duplicate or invalid TMDB recommendation IDs while preserving order.
+2. Creates a `RecommendationImpression` batch.
+3. Records `media_detail` context and the current title as the compound seed.
+4. Records `tmdb_fallback` as the truthful strategy.
+5. Records `tmdb` as each item's source model.
+6. Adds `recommendationId` and `recommendationStrategy` to the media-detail response.
+7. Preserves the existing `media.recommend` array for backward compatibility.
+
+The React recommendation click event now includes the returned recommendation ID, strategy, one-based rank, compound media identity, and seed context. The Phase 2 interaction deduplication rule therefore suppresses repeated clicks only for the same recommendation batch and compound item.
+
+If impression persistence fails, the media-detail request still returns its TMDB recommendations without an ID. The failure log includes only the error name and fallback strategy. This preserves browsing reliability while avoiding false click attribution to a batch that was not stored.
+
+Anonymous users retain the same generic TMDB recommendations and do not create user-linked impression records.
+
+The batch collection is the canonical impression record. Phase 4 does not create one generic `Interaction` row per displayed item, because that would duplicate the batch payload and the Phase 2 event-level deduplication intentionally permits only one impression event per recommendation ID. Item-level exposure is represented by the ordered `items` array instead.
+
+### Retention
+
+The collection has indexes for:
+
+- Unique recommendation ID
+- Recent batches by user
+- Recent batches by page context
+- TTL expiry on `createdAt`
+
+The default retention period is 90 days and can be configured with:
+
+```text
+RECOMMENDATION_IMPRESSION_RETENTION_DAYS=90
+```
+
+Changing the environment value changes the desired Mongoose index definition. Existing MongoDB TTL indexes may need to be updated explicitly during deployment because MongoDB does not always replace an index when only its options change.
+
+### Deferred recommendation flows
+
+Homepage personalized impressions and ML-generated media-detail impressions will reuse the same recording service when their recommendation endpoints are implemented. Phase 4 does not add the FastAPI service, hybrid ranking, model artifacts, or personalized homepage UI.

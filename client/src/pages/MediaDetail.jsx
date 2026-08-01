@@ -97,7 +97,9 @@ const MediaDetail = () => {
       mediaType,
       eventType: "recommendation_click",
       source: "recommendation",
-      recommendationStrategy: "tmdb_fallback",
+      recommendationId: media.recommendationId,
+      recommendationStrategy:
+        media.recommendationStrategy || "tmdb_fallback",
       recommendationRank: rank,
       metadata: {
         context: "media_detail",
