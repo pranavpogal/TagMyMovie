@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from scipy.sparse import csr_matrix
+import numpy as np
 
 from app.collaborative.model import (
     create_als_model,
@@ -33,3 +34,16 @@ def test_installed_implicit_model_uses_users_by_items_orientation(tmp_path: Path
     restored = load_als_model(model_path)
     assert restored.user_factors.shape == model.user_factors.shape
     assert restored.item_factors.shape == model.item_factors.shape
+
+    temporary_row = csr_matrix([[1, 1, 0, 0]], dtype="float32")
+    temporary_factor = model.recalculate_user(0, temporary_row)
+    item_ids, scores = model.recommend(
+        0,
+        temporary_row,
+        N=2,
+        filter_already_liked_items=True,
+        recalculate_user=True,
+    )
+    assert temporary_factor.shape == (model.user_factors.shape[1],)
+    assert np.isfinite(temporary_factor).all()
+    assert len(item_ids) == len(scores) == 2

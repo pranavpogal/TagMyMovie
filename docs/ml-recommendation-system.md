@@ -1018,3 +1018,61 @@ MovieLens users are not TagMyMovie users; its historical movie-rating distributi
 ### Phase boundary
 
 Phase 13 supplies optional external training evidence and source-aware validation. It does not map anonymous/current application users onto MovieLens identities or infer a collaborative vector for a user absent from the trained mapping; new-user inference begins in Phase 14.
+
+## Phase 14: new-user collaborative inference
+
+### Active artifact loading
+
+The inference layer resolves `artifacts/collaborative/current` and loads the library-supported ALS NPZ plus user mapping, compound item mapping, and metadata. It validates mapping uniqueness and both ID-to-index maps, then confirms that factor row counts match the mappings and all factors are finite. A promoted version is cached by its immutable resolved version path, so requests do not repeatedly load the same model while a newly promoted `current` link naturally selects a new cache entry.
+
+Incomplete, unreadable, or inconsistent artifacts do not crash recommendation handling. They produce an explicit content-fallback result with `model_unavailable`.
+
+### Current-user interaction row
+
+For inference, the user’s current interactions are passed through the same Phase 11 logic used for training:
+
+- Validation and exact deduplication.
+- Latest rating/favourite/onboarding state.
+- Positive implicit-confidence weights only.
+- Native recency decay.
+- Logarithmic weak-event saturation and confidence caps.
+- Exact compound-item overlap with the active model mapping.
+
+The resulting one-row float32 CSR matrix is projected into the model’s original item-column order. Negative/neutral events never become positive fold-in values.
+
+### Stored and temporary factors
+
+If the application user exists in the active user mapping, ALS recommends with the stored user factor. If the user is absent, Phase 14 calls the installed library’s supported `recalculate_user` method with the temporary interaction row, validates that the resulting factor is one-dimensional, non-empty, finite, and non-zero, and calls `recommend(..., recalculate_user=True)`.
+
+The recalculated factor exists only for that inference call. The system does not retrain the full model, call partial fitting, mutate shared factor arrays, or write a user-specific model artifact.
+
+Collaborative inference activates only when the row contains at least `CF_MIN_OVERLAP_ITEMS=3` distinct mapped positive items. Zero overlap returns `no_overlapping_positive_items`; one or two items return `insufficient_overlapping_items`. Temporary-factor errors, invalid factors, model recommendation errors, and empty/invalid candidate lists also fall back safely.
+
+### Result contract and preliminary confidence
+
+The result always separates:
+
+- `candidates[].raw_score`: the unnormalized finite ALS score.
+- `collaborative_confidence`: an overlap-derived confidence, not an ALS score.
+- `overlap_items`, `user_in_model`, and `temporary_factor` evidence.
+- `strategy`: `collaborative` or `content_fallback`.
+- A machine-readable fallback reason and active model version.
+
+Before the minimum overlap, confidence is zero. Once activated:
+
+```text
+collaborative_confidence = min(1, overlap_items / CF_FULL_WEIGHT_ITEMS)
+```
+
+`CF_FULL_WEIGHT_ITEMS` defaults to 10 and must be at least the minimum-overlap threshold. This preliminary confidence prevents a raw score from masquerading as reliability; Phase 15 expands confidence with interaction age, model recency, coverage, and factor-quality evidence.
+
+Configuration:
+
+```text
+CF_MIN_OVERLAP_ITEMS=3
+CF_FULL_WEIGHT_ITEMS=10
+```
+
+### Phase boundary
+
+Phase 14 provides safe stored/temporary ALS inference and content-fallback signaling. It does not yet calculate the complete dynamic collaborative-confidence policy; that is Phase 15.

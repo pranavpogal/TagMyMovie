@@ -54,3 +54,8 @@ def test_repository_resolves_users_catalogue_and_reads_source_without_mutation()
         {"user": user_id, "mediaId": "1"}
     ]
     assert not hasattr(interactions, "delete_many")
+
+    assert list(repository.user_interactions(str(user_id))) == [
+        {"user": user_id, "mediaId": "1"}
+    ]
+    assert interactions.find_calls[-1][0] == {"user": user_id}

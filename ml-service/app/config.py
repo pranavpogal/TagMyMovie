@@ -247,6 +247,43 @@ class CollaborativeModelSettings:
             raise ConfigurationError("CF_MIN_RECALL_AT_K must be at most one")
 
 
+@dataclass(frozen=True)
+class CollaborativeInferenceSettings:
+    artifact_directory: Path
+    minimum_overlap_items: int
+    full_confidence_items: int
+    decay_factor: float
+    weak_confidence_cap: float
+    max_confidence: float
+
+    @classmethod
+    def from_env(cls) -> "CollaborativeInferenceSettings":
+        settings = cls(
+            artifact_directory=Path(
+                os.getenv("CF_ARTIFACT_DIRECTORY", "artifacts/collaborative")
+            ).expanduser(),
+            minimum_overlap_items=_integer("CF_MIN_OVERLAP_ITEMS", 3, 1),
+            full_confidence_items=_integer("CF_FULL_WEIGHT_ITEMS", 10, 1),
+            decay_factor=_float("CF_RECENCY_DECAY_FACTOR", 0.98, 0.000001),
+            weak_confidence_cap=_float("CF_WEAK_CONFIDENCE_CAP", 2.0, 0.000001),
+            max_confidence=_float("CF_MAX_CONFIDENCE", 10.0, 0.000001),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if self.full_confidence_items < self.minimum_overlap_items:
+            raise ConfigurationError(
+                "CF_FULL_WEIGHT_ITEMS must be at least CF_MIN_OVERLAP_ITEMS"
+            )
+        if self.decay_factor > 1:
+            raise ConfigurationError("CF_RECENCY_DECAY_FACTOR must be at most one")
+        if self.weak_confidence_cap > self.max_confidence:
+            raise ConfigurationError(
+                "CF_WEAK_CONFIDENCE_CAP must not exceed CF_MAX_CONFIDENCE"
+            )
+
+
 def _integer(name: str, default: int, minimum: int = 0) -> int:
     raw = os.getenv(name)
     try:

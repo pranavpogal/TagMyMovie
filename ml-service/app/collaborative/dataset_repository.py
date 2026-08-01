@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from bson import ObjectId
 from pymongo.database import Database
 
 
@@ -43,3 +44,28 @@ class CollaborativeDatasetRepository:
             "recommendationId": 1,
         }
         return self.interactions.find({}, projection).sort("createdAt", 1)
+
+    def user_interactions(self, user_id: str | ObjectId) -> Iterable[dict[str, Any]]:
+        normalized_user_id = (
+            user_id
+            if isinstance(user_id, ObjectId)
+            else ObjectId(user_id)
+            if ObjectId.is_valid(user_id)
+            else None
+        )
+        if normalized_user_id is None:
+            raise ValueError("user_id must be a valid ObjectId")
+        projection = {
+            "_id": 0,
+            "user": 1,
+            "mediaId": 1,
+            "mediaType": 1,
+            "eventType": 1,
+            "value": 1,
+            "createdAt": 1,
+            "sessionId": 1,
+            "recommendationId": 1,
+        }
+        return self.interactions.find(
+            {"user": normalized_user_id}, projection
+        ).sort("createdAt", 1)

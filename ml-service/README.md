@@ -84,6 +84,12 @@ The opt-in job reads only local `ratings.csv` and `links.csv`, maps positive rat
 
 Training supports `CF_DATA_SOURCE=tagmymovie`, `movielens`, or `combined`; the latter two require `MOVIELENS_DATASET_PATH`. Combined artifacts record source counts and separately report native-user validation when enough native users exist. MovieLens never supplies TV interactions and its metrics are not treated as TagMyMovie production performance.
 
+## Collaborative inference for users outside the model
+
+The collaborative inference layer loads and validates the active ALS model/mappings once per promoted version. It rebuilds a user’s current positive implicit-confidence row against that exact item mapping. Mapped users use their stored factor; unmapped users with at least `CF_MIN_OVERLAP_ITEMS` use `implicit`’s in-memory `recalculate_user` path.
+
+Inference never retrains ALS or writes per-user artifacts. Missing models, insufficient overlap, invalid temporary factors, and recommendation failures return an explicit `content_fallback` result. Raw ALS scores and preliminary overlap confidence are returned separately.
+
 ## Tests
 
 ```bash

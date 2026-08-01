@@ -7,6 +7,7 @@ import pytest
 from app.config import (
     ConfigurationError,
     CollaborativeDatasetSettings,
+    CollaborativeInferenceSettings,
     CollaborativeModelSettings,
     EmbeddingSettings,
     FeatureTextSettings,
@@ -152,3 +153,16 @@ def test_movielens_modes_are_explicit_and_require_a_local_path(
 
     monkeypatch.setenv("MOVIELENS_DATASET_PATH", "/tmp/ml-small")
     assert MovieLensSettings.from_env().dataset_path == Path("/tmp/ml-small")
+
+
+def test_collaborative_inference_overlap_thresholds_are_configurable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = CollaborativeInferenceSettings.from_env()
+    assert settings.minimum_overlap_items == 3
+    assert settings.full_confidence_items == 10
+
+    monkeypatch.setenv("CF_MIN_OVERLAP_ITEMS", "5")
+    monkeypatch.setenv("CF_FULL_WEIGHT_ITEMS", "4")
+    with pytest.raises(ConfigurationError, match="at least"):
+        CollaborativeInferenceSettings.from_env()
