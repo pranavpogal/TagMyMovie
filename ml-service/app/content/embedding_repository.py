@@ -96,6 +96,10 @@ class EmbeddingRepository:
             "featureHash": 1,
             "embedding": 1,
             "embeddingDimension": 1,
+            "originalLanguage": 1,
+            "genreIds": 1,
+            "releaseYear": 1,
+            "voteCount": 1,
         }
         return list(
             self.collection.find(

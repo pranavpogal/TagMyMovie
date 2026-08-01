@@ -65,10 +65,43 @@ class EmbeddingSettings:
             raise ConfigurationError("EMBEDDING_MODEL is required")
         if not self.version:
             raise ConfigurationError("EMBEDDING_VERSION is required")
-        if self.vector_backend != "faiss":
-            raise ConfigurationError("VECTOR_BACKEND must be faiss")
+        if self.vector_backend not in {"faiss", "mongodb"}:
+            raise ConfigurationError("VECTOR_BACKEND must be faiss or mongodb")
         if not self.index_name or any(character in self.index_name for character in "/\\"):
             raise ConfigurationError("VECTOR_INDEX_NAME must be a safe file name")
+
+
+@dataclass(frozen=True)
+class VectorSearchSettings:
+    backend: str
+    index_name: str
+    artifact_directory: Path
+    candidate_limit: int
+    num_candidates: int
+
+    @classmethod
+    def from_env(cls) -> "VectorSearchSettings":
+        settings = cls(
+            backend=os.getenv("VECTOR_BACKEND", "faiss").strip().lower(),
+            index_name=os.getenv("VECTOR_INDEX_NAME", "media_embedding_index").strip(),
+            artifact_directory=Path(
+                os.getenv("CONTENT_ARTIFACT_DIRECTORY", "artifacts/content")
+            ).expanduser(),
+            candidate_limit=_integer("CONTENT_CANDIDATE_LIMIT", 150, 1),
+            num_candidates=_integer("VECTOR_NUM_CANDIDATES", 300, 1),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if self.backend not in {"faiss", "mongodb"}:
+            raise ConfigurationError("VECTOR_BACKEND must be faiss or mongodb")
+        if not self.index_name or any(character in self.index_name for character in "/\\"):
+            raise ConfigurationError("VECTOR_INDEX_NAME must be a safe file name")
+        if self.num_candidates < self.candidate_limit:
+            raise ConfigurationError(
+                "VECTOR_NUM_CANDIDATES must be at least CONTENT_CANDIDATE_LIMIT"
+            )
 
 
 def _integer(name: str, default: int, minimum: int = 0) -> int:

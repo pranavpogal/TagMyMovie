@@ -37,7 +37,14 @@ def build_faiss_index(
         if len(vector) != dimension:
             raise EmbeddingError("content index contains mixed dimensions")
         identities.append(
-            {"mediaType": str(record["mediaType"]), "tmdbId": str(record["tmdbId"])}
+            {
+                "mediaType": str(record["mediaType"]),
+                "tmdbId": str(record["tmdbId"]),
+                "originalLanguage": str(record.get("originalLanguage") or ""),
+                "genreIds": list(record.get("genreIds") or []),
+                "releaseYear": record.get("releaseYear"),
+                "voteCount": int(record.get("voteCount") or 0),
+            }
         )
         vectors.append([float(value) for value in vector])
 

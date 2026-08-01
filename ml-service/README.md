@@ -40,6 +40,12 @@ The offline command lazily loads the configured sentence-transformer once, embed
 
 Defaults use `sentence-transformers/all-MiniLM-L6-v2`, embedding version `content-embedding-v1`, batches of 64, and artifacts under `artifacts/content`. The model is downloaded by the sentence-transformers library on its first use. Catalogue ingestion must have populated MongoDB first.
 
+## Vector search
+
+`app.content.vector_store` is the backend-neutral contract used by later recommendation phases. Set `VECTOR_BACKEND=faiss` for the local persisted index or `mongodb` for Atlas Vector Search. Both implementations support upsert, search, deletion, health checks, dimension validation, candidate over-fetching, and the same media type, language, genre, release-year, and vote-count filters.
+
+For Atlas, create the search index named by `VECTOR_INDEX_NAME` on `media_catalog.embedding` using `docs/atlas-vector-search-index.json`. Its checked-in definition uses 384 dimensions for the default MiniLM model; change `numDimensions` when selecting a model with a different output size.
+
 ## Tests
 
 ```bash

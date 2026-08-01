@@ -724,3 +724,33 @@ CONTENT_ARTIFACT_DIRECTORY=artifacts/content
 ### Phase boundary
 
 Phase 8 generates and stores embeddings and builds the local FAISS artifact. It does not yet expose the backend-neutral vector-search interface, MongoDB/FAISS store implementations, or candidate search API; those belong to Phase 9.
+
+## Phase 9: vector-search abstraction
+
+### Neutral contract
+
+Recommendation code can now depend on `VectorStore` rather than backend-specific syntax. The contract exposes `upsert`, `search`, `delete`, and `health_check`, with typed items, results, health status, and filters. A factory selects `faiss` or `mongodb` through `VECTOR_BACKEND`; unsupported backends fail configuration rather than silently falling back.
+
+Both implementations validate finite, non-zero vectors and consistent dimensions. Search requires `num_candidates` to be at least the final positive `limit`, ensuring candidate retrieval is broader than the returned result set. Supported neutral filters are:
+
+- Movie or TV media type.
+- Original language.
+- Any matching genre ID.
+- Minimum and maximum release year.
+- Minimum vote count.
+
+Default retrieval settings are `CONTENT_CANDIDATE_LIMIT=150` and `VECTOR_NUM_CANDIDATES=300`.
+
+### Local FAISS backend
+
+The FAISS implementation uses normalized vectors with an exact inner-product index, making scores cosine-equivalent. Its stable JSON row-to-compound-media mapping also contains all filter metadata. Upserting an existing `mediaType + tmdbId` replaces its vector instead of duplicating it; deletion rebuilds the index without removed rows. Every mutation is sorted by compound key and safely rebuilt through temporary files and atomic replacement. Health checks reject missing, unreadable, count-mismatched, or dimension-mismatched artifact pairs.
+
+### MongoDB Atlas backend
+
+The MongoDB implementation generates a `$vectorSearch` aggregation and translates the same neutral filters into Atlas pre-filters. It normalizes and dimension-checks query and stored vectors, performs unordered updates by compound media identity, clears deleted vectors and their model metadata, and checks MongoDB connectivity plus the indexed-vector count.
+
+Create the Atlas index named by `VECTOR_INDEX_NAME` on the `media_catalog` collection using `docs/atlas-vector-search-index.json`. The supplied definition indexes `embedding` with cosine similarity and filter paths for `mediaType`, `originalLanguage`, `genreIds`, `releaseYear`, and `voteCount`. Its default 384 dimensions match MiniLM; the definition must be changed when `EMBEDDING_MODEL` has a different dimension. Atlas builds and updates this search index asynchronously after MongoDB vector persistence.
+
+### Phase boundary
+
+Phase 9 provides storage and nearest-neighbour search only. It does not calculate user taste profiles or turn interactions into a query vector; content-based user profiles begin in Phase 10.

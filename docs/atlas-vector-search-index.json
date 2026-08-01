@@ -1,0 +1,30 @@
+{
+  "fields": [
+    {
+      "type": "vector",
+      "path": "embedding",
+      "numDimensions": 384,
+      "similarity": "cosine"
+    },
+    {
+      "type": "filter",
+      "path": "mediaType"
+    },
+    {
+      "type": "filter",
+      "path": "originalLanguage"
+    },
+    {
+      "type": "filter",
+      "path": "genreIds"
+    },
+    {
+      "type": "filter",
+      "path": "releaseYear"
+    },
+    {
+      "type": "filter",
+      "path": "voteCount"
+    }
+  ]
+}

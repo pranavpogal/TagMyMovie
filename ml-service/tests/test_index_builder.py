@@ -40,8 +40,14 @@ def test_builds_faiss_index_and_aligned_identity_manifest(tmp_path: Path) -> Non
     assert index.ntotal == 2
     assert index.d == 2
     assert manifest["items"] == [
-        {"mediaType": "movie", "tmdbId": "10"},
-        {"mediaType": "tv", "tmdbId": "20"},
+        {
+            "mediaType": "movie", "tmdbId": "10", "originalLanguage": "",
+            "genreIds": [], "releaseYear": None, "voteCount": 0,
+        },
+        {
+            "mediaType": "tv", "tmdbId": "20", "originalLanguage": "",
+            "genreIds": [], "releaseYear": None, "voteCount": 0,
+        },
     ]
     assert manifest["dimension"] == 2
 

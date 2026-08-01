@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pytest
 
-from app.config import ConfigurationError, EmbeddingSettings, FeatureTextSettings, Settings
+from app.config import (
+    ConfigurationError,
+    EmbeddingSettings,
+    FeatureTextSettings,
+    Settings,
+    VectorSearchSettings,
+)
 
 
 def test_settings_reuse_existing_environment_names(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -58,11 +64,27 @@ def test_embedding_settings_have_local_defaults(monkeypatch: pytest.MonkeyPatch)
     assert settings.vector_backend == "faiss"
 
 
-def test_embedding_settings_reject_unsupported_backend(
+def test_embedding_settings_support_mongodb_and_reject_unknown_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("MONGODB_URL", "mongodb://localhost/tagmymovie")
+    monkeypatch.setenv("VECTOR_BACKEND", "mongodb")
+    assert EmbeddingSettings.from_env().vector_backend == "mongodb"
+
     monkeypatch.setenv("VECTOR_BACKEND", "unknown")
 
     with pytest.raises(ConfigurationError):
         EmbeddingSettings.from_env()
+
+
+def test_vector_search_settings_validate_candidate_overfetch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = VectorSearchSettings.from_env()
+    assert settings.candidate_limit == 150
+    assert settings.num_candidates == 300
+
+    monkeypatch.setenv("CONTENT_CANDIDATE_LIMIT", "20")
+    monkeypatch.setenv("VECTOR_NUM_CANDIDATES", "10")
+    with pytest.raises(ConfigurationError, match="at least"):
+        VectorSearchSettings.from_env()

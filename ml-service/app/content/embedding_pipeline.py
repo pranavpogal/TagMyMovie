@@ -94,13 +94,17 @@ class ContentEmbeddingPipeline:
             if record.get("featureHash")
             == current_feature_hashes.get(str(record.get("_id")))
         ]
-        summary.indexed = build_faiss_index(
-            records,
-            artifact_directory=self.settings.artifact_directory,
-            index_name=self.settings.index_name,
-            model_name=self.settings.model_name,
-            version=self.settings.version,
-        )
+        if self.settings.vector_backend == "faiss":
+            summary.indexed = build_faiss_index(
+                records,
+                artifact_directory=self.settings.artifact_directory,
+                index_name=self.settings.index_name,
+                model_name=self.settings.model_name,
+                version=self.settings.version,
+            )
+        else:
+            # Atlas Vector Search indexes the persisted MongoDB vectors asynchronously.
+            summary.indexed = len(records)
         LOGGER.info(
             "content embedding build complete",
             extra={f"count_{key}": value for key, value in summary.as_dict().items()},
