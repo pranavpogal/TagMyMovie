@@ -32,6 +32,11 @@ class CollaborativeDatasetRepository:
             )
         }
 
+    def catalogue_item_count(self) -> int:
+        return self.catalogue.count_documents(
+            {"mediaType": {"$in": ["movie", "tv"]}}
+        )
+
     def iter_interactions(self) -> Iterable[dict[str, Any]]:
         projection = {
             "user": 1,

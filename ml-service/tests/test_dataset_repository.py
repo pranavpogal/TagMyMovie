@@ -19,6 +19,12 @@ class FakeCollection:
         self.find_calls.append((query, projection))
         return FakeCursor(self.documents)
 
+    def count_documents(self, query):
+        return sum(
+            document.get("mediaType") in query["mediaType"]["$in"]
+            for document in self.documents
+        )
+
 
 class FakeDatabase:
     def __init__(self, collections) -> None:
@@ -50,6 +56,7 @@ def test_repository_resolves_users_catalogue_and_reads_source_without_mutation()
 
     assert repository.valid_user_ids() == {str(user_id)}
     assert repository.valid_item_keys() == {"movie:1", "tv:1"}
+    assert repository.catalogue_item_count() == 2
     assert list(repository.iter_interactions()) == [
         {"user": user_id, "mediaId": "1"}
     ]

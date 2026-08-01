@@ -88,7 +88,9 @@ Training supports `CF_DATA_SOURCE=tagmymovie`, `movielens`, or `combined`; the l
 
 The collaborative inference layer loads and validates the active ALS model/mappings once per promoted version. It rebuilds a user’s current positive implicit-confidence row against that exact item mapping. Mapped users use their stored factor; unmapped users with at least `CF_MIN_OVERLAP_ITEMS` use `implicit`’s in-memory `recalculate_user` path.
 
-Inference never retrains ALS or writes per-user artifacts. Missing models, insufficient overlap, invalid temporary factors, and recommendation failures return an explicit `content_fallback` result. Raw ALS scores and preliminary overlap confidence are returned separately.
+Inference never retrains ALS or writes per-user artifacts. Missing models, insufficient overlap, invalid stored/temporary factors, and recommendation failures return an explicit `content_fallback` result. Raw ALS scores and dynamic collaborative confidence are returned separately.
+
+Collaborative confidence is inactive below three mapped items, then moves through configurable low (3–5), moderate (6–9), and normal (10+) overlap tiers. Within a tier, the weight also reflects meaningful and unique positive activity, interaction freshness, model freshness, catalogue coverage, factor validity, and whether the factor is stored or temporary. The evidence is returned with the result, so the presence of an ALS artifact alone can never activate collaborative scoring.
 
 ## Tests
 

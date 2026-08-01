@@ -255,6 +255,11 @@ class CollaborativeInferenceSettings:
     decay_factor: float
     weak_confidence_cap: float
     max_confidence: float
+    moderate_overlap_items: int = 6
+    low_confidence_ceiling: float = 0.35
+    moderate_confidence_ceiling: float = 0.70
+    temporary_factor_multiplier: float = 0.85
+    model_recency_decay_factor: float = 0.99
 
     @classmethod
     def from_env(cls) -> "CollaborativeInferenceSettings":
@@ -267,6 +272,17 @@ class CollaborativeInferenceSettings:
             decay_factor=_float("CF_RECENCY_DECAY_FACTOR", 0.98, 0.000001),
             weak_confidence_cap=_float("CF_WEAK_CONFIDENCE_CAP", 2.0, 0.000001),
             max_confidence=_float("CF_MAX_CONFIDENCE", 10.0, 0.000001),
+            moderate_overlap_items=_integer("CF_MODERATE_OVERLAP_ITEMS", 6, 1),
+            low_confidence_ceiling=_float("CF_LOW_CONFIDENCE_CEILING", 0.35, 0),
+            moderate_confidence_ceiling=_float(
+                "CF_MODERATE_CONFIDENCE_CEILING", 0.70, 0
+            ),
+            temporary_factor_multiplier=_float(
+                "CF_TEMPORARY_FACTOR_MULTIPLIER", 0.85, 0
+            ),
+            model_recency_decay_factor=_float(
+                "CF_MODEL_RECENCY_DECAY_FACTOR", 0.99, 0.000001
+            ),
         )
         settings.validate()
         return settings
@@ -276,11 +292,31 @@ class CollaborativeInferenceSettings:
             raise ConfigurationError(
                 "CF_FULL_WEIGHT_ITEMS must be at least CF_MIN_OVERLAP_ITEMS"
             )
+        if not (
+            self.minimum_overlap_items
+            <= self.moderate_overlap_items
+            <= self.full_confidence_items
+        ):
+            raise ConfigurationError(
+                "CF overlap thresholds must be ordered minimum, moderate, full"
+            )
         if self.decay_factor > 1:
             raise ConfigurationError("CF_RECENCY_DECAY_FACTOR must be at most one")
         if self.weak_confidence_cap > self.max_confidence:
             raise ConfigurationError(
                 "CF_WEAK_CONFIDENCE_CAP must not exceed CF_MAX_CONFIDENCE"
+            )
+        if not (
+            0 <= self.low_confidence_ceiling <= self.moderate_confidence_ceiling <= 1
+        ):
+            raise ConfigurationError("CF confidence ceilings must be ordered within zero and one")
+        if not 0 <= self.temporary_factor_multiplier <= 1:
+            raise ConfigurationError(
+                "CF_TEMPORARY_FACTOR_MULTIPLIER must be between zero and one"
+            )
+        if self.model_recency_decay_factor > 1:
+            raise ConfigurationError(
+                "CF_MODEL_RECENCY_DECAY_FACTOR must be at most one"
             )
 
 

@@ -160,9 +160,22 @@ def test_collaborative_inference_overlap_thresholds_are_configurable(
 ) -> None:
     settings = CollaborativeInferenceSettings.from_env()
     assert settings.minimum_overlap_items == 3
+    assert settings.moderate_overlap_items == 6
     assert settings.full_confidence_items == 10
 
     monkeypatch.setenv("CF_MIN_OVERLAP_ITEMS", "5")
     monkeypatch.setenv("CF_FULL_WEIGHT_ITEMS", "4")
     with pytest.raises(ConfigurationError, match="at least"):
+        CollaborativeInferenceSettings.from_env()
+
+    monkeypatch.setenv("CF_FULL_WEIGHT_ITEMS", "10")
+    monkeypatch.setenv("CF_MODERATE_OVERLAP_ITEMS", "4")
+    with pytest.raises(ConfigurationError, match="ordered"):
+        CollaborativeInferenceSettings.from_env()
+
+    monkeypatch.setenv("CF_MIN_OVERLAP_ITEMS", "3")
+    monkeypatch.setenv("CF_MODERATE_OVERLAP_ITEMS", "6")
+    monkeypatch.setenv("CF_LOW_CONFIDENCE_CEILING", "0.8")
+    monkeypatch.setenv("CF_MODERATE_CONFIDENCE_CEILING", "0.7")
+    with pytest.raises(ConfigurationError, match="ceilings"):
         CollaborativeInferenceSettings.from_env()

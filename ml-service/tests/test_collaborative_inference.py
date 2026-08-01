@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from app.collaborative.inference import infer_collaborative_candidates
 from app.collaborative.model_loader import LoadedCollaborativeModel
@@ -16,6 +17,7 @@ NOW = datetime(2026, 8, 1, tzinfo=timezone.utc)
 class FakeModel:
     def __init__(self, *, factor=None) -> None:
         self.factor = np.asarray(factor if factor is not None else [1.0, 0.5])
+        self.user_factors = np.asarray([[1.0, 0.5]])
         self.recalculate_calls = 0
         self.recommend_calls = []
 
@@ -45,7 +47,7 @@ def loaded(model, *, users=()) -> LoadedCollaborativeModel:
         model=model,
         user_ids=tuple(users),
         item_keys=("movie:1", "movie:2", "tv:1", "movie:3", "tv:2"),
-        metadata={"modelVersion": "als-v1"},
+        metadata={"modelVersion": "als-v1", "trainedAt": NOW.isoformat()},
         directory=Path("/model"),
     )
 
@@ -78,7 +80,9 @@ def test_new_user_uses_temporary_factor_without_mutating_model_or_artifacts(tmp_
     assert result.temporary_factor is True
     assert result.user_in_model is False
     assert result.overlap_items == 3
-    assert result.collaborative_confidence == 0.3
+    assert result.collaborative_confidence == pytest.approx(0.2037875)
+    assert result.confidence_evidence is not None
+    assert result.confidence_evidence.tier == "low"
     assert [(candidate.item_key, candidate.raw_score) for candidate in result.candidates] == [
         ("movie:3", 0.9),
         ("tv:2", 0.4),
@@ -101,7 +105,9 @@ def test_known_user_uses_stored_factor_but_returns_confidence_separately(tmp_pat
     assert result.used_collaborative
     assert result.user_in_model is True
     assert result.temporary_factor is False
-    assert result.collaborative_confidence == 0.3
+    assert result.collaborative_confidence == pytest.approx(0.23975)
+    assert result.confidence_evidence is not None
+    assert result.confidence_evidence.user_in_model is True
     assert model.recalculate_calls == 0
     assert model.recommend_calls[0][1] is False
 
@@ -135,6 +141,8 @@ def test_no_or_insufficient_overlap_returns_explicit_content_fallback(tmp_path: 
     assert no_overlap.collaborative_confidence == 0
     assert insufficient.fallback_reason == "insufficient_overlapping_items"
     assert insufficient.overlap_items == 2
+    assert insufficient.confidence_evidence is not None
+    assert insufficient.confidence_evidence.tier == "inactive"
     assert model.recalculate_calls == 0
 
 

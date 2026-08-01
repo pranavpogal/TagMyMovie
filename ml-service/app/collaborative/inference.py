@@ -2,12 +2,18 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Iterable
 
 import numpy as np
 from scipy.sparse import csr_matrix
 
+from app.collaborative.confidence import (
+    CollaborativeConfidenceEvidence,
+    calculate_collaborative_confidence,
+    summarize_positive_activity,
+    valid_factor,
+)
 from app.collaborative.matrix_builder import build_interaction_matrix
 from app.collaborative.model_loader import (
     CollaborativeArtifactError,
@@ -41,6 +47,7 @@ class CollaborativeInferenceResult:
     temporary_factor: bool
     fallback_reason: str | None
     model_version: str | None
+    confidence_evidence: CollaborativeConfidenceEvidence | None
 
     @property
     def used_collaborative(self) -> bool:
@@ -55,6 +62,7 @@ def infer_collaborative_candidates(
     limit: int = 20,
     now: datetime | None = None,
     loaded: LoadedCollaborativeModel | None = None,
+    catalogue_item_count: int | None = None,
 ) -> CollaborativeInferenceResult:
     settings.validate()
     if limit < 1:
@@ -64,7 +72,14 @@ def infer_collaborative_candidates(
     except CollaborativeArtifactError:
         return _fallback("model_unavailable")
 
+    reference_now = now or datetime.now(timezone.utc)
     interaction_list = [{**interaction, "user": user_id} for interaction in interactions]
+    activity = summarize_positive_activity(
+        interaction_list,
+        model_item_keys=set(active.item_keys),
+        now=reference_now,
+        decay_factor=settings.decay_factor,
+    )
     dataset_settings = CollaborativeDatasetSettings(
         mongodb_url="in-memory",
         mongodb_database="in-memory",
@@ -80,13 +95,28 @@ def infer_collaborative_candidates(
         valid_user_ids={user_id},
         valid_item_keys=set(active.item_keys),
         settings=dataset_settings,
-        now=now,
+        now=reference_now,
     )
     if not user_dataset.mappings.users:
+        confidence = calculate_collaborative_confidence(
+            activity,
+            settings=settings,
+            user_in_model=user_id in active.user_to_index,
+            factor=(),
+            model_trained_at=active.metadata.get("trainedAt"),
+            catalogue_item_count=(
+                len(active.item_keys)
+                if catalogue_item_count is None
+                else catalogue_item_count
+            ),
+            model_item_count=len(active.item_keys),
+            now=reference_now,
+        )
         return _fallback(
             "no_overlapping_positive_items",
             user_in_model=user_id in active.user_to_index,
             model_version=active.metadata.get("modelVersion"),
+            confidence_evidence=confidence.evidence,
         )
     local_user_index = user_dataset.mappings.user_to_index[user_id]
     local_row = user_dataset.matrix[local_user_index]
@@ -103,11 +133,26 @@ def infer_collaborative_candidates(
     overlap = model_row.nnz
     user_in_model = user_id in active.user_to_index
     if overlap < settings.minimum_overlap_items:
+        confidence = calculate_collaborative_confidence(
+            activity,
+            settings=settings,
+            user_in_model=user_in_model,
+            factor=(),
+            model_trained_at=active.metadata.get("trainedAt"),
+            catalogue_item_count=(
+                len(active.item_keys)
+                if catalogue_item_count is None
+                else catalogue_item_count
+            ),
+            model_item_count=len(active.item_keys),
+            now=reference_now,
+        )
         return _fallback(
             "insufficient_overlapping_items",
             overlap_items=overlap,
             user_in_model=user_in_model,
             model_version=active.metadata.get("modelVersion"),
+            confidence_evidence=confidence.evidence,
         )
 
     temporary_factor = not user_in_model
@@ -123,17 +168,44 @@ def infer_collaborative_candidates(
                 overlap_items=overlap,
                 model_version=active.metadata.get("modelVersion"),
             )
-        if (
-            factor.ndim != 1
-            or factor.size == 0
-            or not np.isfinite(factor).all()
-            or float(np.linalg.norm(factor)) <= 1e-12
-        ):
+        if factor.ndim != 1 or not valid_factor(factor):
             return _fallback(
                 "temporary_factor_invalid",
                 overlap_items=overlap,
                 model_version=active.metadata.get("modelVersion"),
             )
+    else:
+        factor = np.asarray(active.model.user_factors[model_user_index])
+        if factor.ndim != 1 or not valid_factor(factor):
+            return _fallback(
+                "stored_factor_invalid",
+                overlap_items=overlap,
+                user_in_model=True,
+                model_version=active.metadata.get("modelVersion"),
+            )
+
+    confidence = calculate_collaborative_confidence(
+        activity,
+        settings=settings,
+        user_in_model=user_in_model,
+        factor=factor,
+        model_trained_at=active.metadata.get("trainedAt"),
+        catalogue_item_count=(
+            len(active.item_keys)
+            if catalogue_item_count is None
+            else catalogue_item_count
+        ),
+        model_item_count=len(active.item_keys),
+        now=reference_now,
+    )
+    if confidence.score <= 0:
+        return _fallback(
+            "collaborative_confidence_zero",
+            overlap_items=overlap,
+            user_in_model=user_in_model,
+            model_version=active.metadata.get("modelVersion"),
+            confidence_evidence=confidence.evidence,
+        )
 
     try:
         item_ids, scores = active.model.recommend(
@@ -171,16 +243,16 @@ def infer_collaborative_candidates(
             user_in_model=user_in_model,
             model_version=active.metadata.get("modelVersion"),
         )
-    confidence = min(1.0, overlap / settings.full_confidence_items)
     return CollaborativeInferenceResult(
         strategy="collaborative",
         candidates=tuple(candidates),
-        collaborative_confidence=confidence,
+        collaborative_confidence=confidence.score,
         overlap_items=overlap,
         user_in_model=user_in_model,
         temporary_factor=temporary_factor,
         fallback_reason=None,
         model_version=active.metadata.get("modelVersion"),
+        confidence_evidence=confidence.evidence,
     )
 
 
@@ -190,6 +262,7 @@ def _fallback(
     overlap_items: int = 0,
     user_in_model: bool = False,
     model_version: str | None = None,
+    confidence_evidence: CollaborativeConfidenceEvidence | None = None,
 ) -> CollaborativeInferenceResult:
     return CollaborativeInferenceResult(
         strategy="content_fallback",
@@ -200,6 +273,7 @@ def _fallback(
         temporary_factor=False,
         fallback_reason=reason,
         model_version=model_version,
+        confidence_evidence=confidence_evidence,
     )
 
 
@@ -217,4 +291,5 @@ class CollaborativeInferenceService:
             settings=self.settings,
             limit=limit,
             now=now,
+            catalogue_item_count=self.repository.catalogue_item_count(),
         )

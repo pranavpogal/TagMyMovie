@@ -1076,3 +1076,53 @@ CF_FULL_WEIGHT_ITEMS=10
 ### Phase boundary
 
 Phase 14 provides safe stored/temporary ALS inference and content-fallback signaling. It does not yet calculate the complete dynamic collaborative-confidence policy; that is Phase 15.
+
+## Phase 15: dynamic collaborative confidence
+
+### Evidence-based activation
+
+The collaborative blend weight is calculated for every user rather than fixed globally. A loaded model is necessary but never sufficient to activate collaborative scoring. Confidence remains zero unless the current user has enough distinct positive items that overlap the active model and the selected stored or temporary factor is finite, non-empty, and non-zero.
+
+The versioned `collaborative-confidence-v1` evidence records:
+
+- Meaningful positive interactions after exact deduplication and latest-state handling.
+- Unique positive items and distinct items mapped by the active ALS catalogue.
+- Mean interaction-recency decay.
+- Whether the user exists in the ALS user mapping.
+- Stored/temporary factor validity.
+- Active-model age and recency decay from its real `trainedAt` metadata.
+- Model catalogue coverage relative to the current movie/TV catalogue.
+- The selected activation tier.
+
+Invalid timestamps do not count as activity. Future interaction or model timestamps are clamped to age zero and cannot boost confidence above a fresh event or model. Missing/invalid model timestamps contribute zero model-recency evidence.
+
+### Configurable overlap tiers
+
+Default activation bands are:
+
+```text
+0–2 overlapping items: inactive, confidence 0
+3–5 overlapping items: low, ceiling 0.35
+6–9 overlapping items: moderate, ceiling 0.70
+10+ overlapping items: normal, ceiling 1.00
+```
+
+Within the selected ceiling, evidence quality combines activity depth (25%), unique-item depth (20%), interaction recency (20%), model recency (15%), and catalogue coverage (20%). An inferred temporary factor receives a default `0.85` multiplier because it lacks the evidence of a factor learned during full training. The final value is clamped to `[0, 1]` and remains separate from raw ALS candidate scores.
+
+Configuration:
+
+```text
+CF_MIN_OVERLAP_ITEMS=3
+CF_MODERATE_OVERLAP_ITEMS=6
+CF_FULL_WEIGHT_ITEMS=10
+CF_LOW_CONFIDENCE_CEILING=0.35
+CF_MODERATE_CONFIDENCE_CEILING=0.70
+CF_TEMPORARY_FACTOR_MULTIPLIER=0.85
+CF_MODEL_RECENCY_DECAY_FACTOR=0.99
+```
+
+Thresholds and ceilings must be ordered. The model-recency factor is applied once per age day. Catalogue size is read from the current MongoDB movie/TV catalogue at inference time; tests use deterministic in-memory values and do not claim live-database validation.
+
+### Phase boundary
+
+Phase 15 provides a transparent, dynamic collaborative-confidence signal and evidence contract. It does not yet blend collaborative candidates with content recommendations; that integration begins in Phase 16.
