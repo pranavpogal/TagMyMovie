@@ -23,6 +23,14 @@ class CollaborativeDatasetRepository:
             )
         }
 
+    def valid_movie_tmdb_ids(self) -> set[str]:
+        return {
+            str(document["tmdbId"])
+            for document in self.catalogue.find(
+                {"mediaType": "movie"}, {"_id": 0, "tmdbId": 1}
+            )
+        }
+
     def iter_interactions(self) -> Iterable[dict[str, Any]]:
         projection = {
             "user": 1,

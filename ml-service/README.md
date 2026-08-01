@@ -72,6 +72,18 @@ The job rebuilds the validated users-by-items dataset, makes a deterministic lea
 
 Successful versions are safely serialized under `artifacts/collaborative/versions/`; an atomically replaced `current` symlink exposes the active model, mappings, metadata, and evaluation. Failed candidates leave the previous current model untouched.
 
+## Optional MovieLens bootstrap
+
+Download and extract a MovieLens dataset yourself after reviewing its accompanying README and license, then run:
+
+```bash
+python -m jobs.bootstrap_movielens --dataset-path /path/to/ml-latest-small
+```
+
+The opt-in job reads only local `ratings.csv` and `links.csv`, maps positive ratings to catalogue movie TMDB IDs, namespaces users as `movielens:<id>`, and persists an external bootstrap matrix. No dataset rows are committed to Git.
+
+Training supports `CF_DATA_SOURCE=tagmymovie`, `movielens`, or `combined`; the latter two require `MOVIELENS_DATASET_PATH`. Combined artifacts record source counts and separately report native-user validation when enough native users exist. MovieLens never supplies TV interactions and its metrics are not treated as TagMyMovie production performance.
+
 ## Tests
 
 ```bash

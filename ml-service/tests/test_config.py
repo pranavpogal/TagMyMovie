@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from app.config import (
@@ -8,6 +10,7 @@ from app.config import (
     CollaborativeModelSettings,
     EmbeddingSettings,
     FeatureTextSettings,
+    MovieLensSettings,
     ProfileSettings,
     Settings,
     VectorSearchSettings,
@@ -136,3 +139,16 @@ def test_collaborative_model_settings_use_reproducible_defaults(
     monkeypatch.setenv("CF_MIN_RECALL_AT_K", "1.1")
     with pytest.raises(ConfigurationError, match="at most one"):
         CollaborativeModelSettings.from_env()
+
+
+def test_movielens_modes_are_explicit_and_require_a_local_path(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert MovieLensSettings.from_env().data_source == "tagmymovie"
+
+    monkeypatch.setenv("CF_DATA_SOURCE", "combined")
+    with pytest.raises(ConfigurationError, match="MOVIELENS_DATASET_PATH"):
+        MovieLensSettings.from_env()
+
+    monkeypatch.setenv("MOVIELENS_DATASET_PATH", "/tmp/ml-small")
+    assert MovieLensSettings.from_env().dataset_path == Path("/tmp/ml-small")

@@ -7,12 +7,14 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 from app.collaborative.dataset_repository import CollaborativeDatasetRepository
+from app.collaborative.data_sources import load_collaborative_sources
 from app.collaborative.matrix_builder import build_interaction_matrix
 from app.collaborative.training import TrainingValidationError, train_and_promote
 from app.config import (
     CollaborativeDatasetSettings,
     CollaborativeModelSettings,
     ConfigurationError,
+    MovieLensSettings,
 )
 from app.database import create_mongo_client
 from app.logging_config import configure_logging
@@ -28,12 +30,14 @@ def main() -> int:
     try:
         dataset_settings = CollaborativeDatasetSettings.from_env()
         model_settings = CollaborativeModelSettings.from_env()
+        source_settings = MovieLensSettings.from_env()
         client = create_mongo_client(dataset_settings.mongodb_url)
         client.admin.command("ping")
         repository = CollaborativeDatasetRepository(
             client[dataset_settings.mongodb_database]
         )
-        interactions = list(repository.iter_interactions())
+        sources = load_collaborative_sources(repository, source_settings)
+        interactions = sources.interactions
         timestamps = [
             interaction["createdAt"]
             for interaction in interactions
@@ -41,8 +45,8 @@ def main() -> int:
         ]
         dataset = build_interaction_matrix(
             interactions,
-            valid_user_ids=repository.valid_user_ids(),
-            valid_item_keys=repository.valid_item_keys(),
+            valid_user_ids=sources.valid_user_ids,
+            valid_item_keys=sources.valid_item_keys,
             settings=dataset_settings,
         )
         result = train_and_promote(
@@ -50,6 +54,13 @@ def main() -> int:
             model_settings,
             data_start=min(timestamps) if timestamps else None,
             data_end=max(timestamps) if timestamps else None,
+            data_source=sources.data_source,
+            source_counts={
+                "tagmymovieRecords": sources.native_records,
+                "movielensRecords": sources.external_records,
+                "tagmymovieMatrixEntries": dataset.summary.interactions_native,
+                "movielensMatrixEntries": dataset.summary.interactions_external,
+            },
         )
         print(
             json.dumps(
@@ -58,6 +69,12 @@ def main() -> int:
                     "versionDirectory": str(result.version_directory),
                     "metrics": result.metrics.as_dict(),
                     "dataset": dataset.summary.as_dict(),
+                    "dataSource": sources.data_source,
+                    "nativeMetrics": (
+                        result.native_metrics.as_dict()
+                        if result.native_metrics is not None
+                        else None
+                    ),
                 },
                 indent=2,
             )

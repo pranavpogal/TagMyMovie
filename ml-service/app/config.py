@@ -181,6 +181,32 @@ class CollaborativeDatasetSettings:
 
 
 @dataclass(frozen=True)
+class MovieLensSettings:
+    data_source: str
+    dataset_path: Path | None
+
+    @classmethod
+    def from_env(cls) -> "MovieLensSettings":
+        raw_path = os.getenv("MOVIELENS_DATASET_PATH", "").strip()
+        settings = cls(
+            data_source=os.getenv("CF_DATA_SOURCE", "tagmymovie").strip().lower(),
+            dataset_path=Path(raw_path).expanduser() if raw_path else None,
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if self.data_source not in {"tagmymovie", "movielens", "combined"}:
+            raise ConfigurationError(
+                "CF_DATA_SOURCE must be tagmymovie, movielens, or combined"
+            )
+        if self.data_source != "tagmymovie" and self.dataset_path is None:
+            raise ConfigurationError(
+                "MOVIELENS_DATASET_PATH is required for this CF_DATA_SOURCE"
+            )
+
+
+@dataclass(frozen=True)
 class CollaborativeModelSettings:
     artifact_directory: Path
     model_version: str

@@ -964,3 +964,57 @@ CF_MIN_RECALL_AT_K=0.01
 ### Phase boundary
 
 Phase 12 trains and validates TagMyMovie ALS artifacts. It does not import MovieLens data, blend external identifiers, or infer factors for unseen users; optional MovieLens bootstrap begins in Phase 13 and new-user collaborative inference remains Phase 14.
+
+## Phase 13: optional MovieLens bootstrap
+
+### Explicit local opt-in
+
+MovieLens is disabled by default. TagMyMovie does not automatically download it and never commits the full dataset. After obtaining and extracting a dataset directly from GroupLens and reviewing the README/license included with that release, run:
+
+```bash
+cd ml-service
+python -m jobs.bootstrap_movielens --dataset-path /path/to/ml-latest-small
+```
+
+The path must be a local directory containing standard `links.csv` and `ratings.csv` files with their required headers. The bootstrap command still requires the TagMyMovie MongoDB catalogue because only resolvable catalogue movies are useful to the application. It writes generated sparse artifacts under the already ignored collaborative artifact directory.
+
+### Identity and item mapping
+
+`links.csv` is the sole MovieLens-to-application bridge:
+
+```text
+MovieLens movieId -> links.csv tmdbId -> movie:<tmdbId>
+```
+
+Blank/invalid links and TMDB IDs absent from TagMyMovie’s movie catalogue are skipped. External rows always use `mediaType=movie`; MovieLens cannot create TV interactions or TV latent evidence. TV recommendations therefore continue to depend on native TagMyMovie behavior and content models.
+
+Every external user is namespaced as `movielens:<userId>` and every normalized record is marked `dataSource=movielens` and `external=true`. Native application users remain their MongoDB ObjectId strings. The namespace prevents collisions, but it does not imply that a MovieLens user is registered with or identifiable as a TagMyMovie user.
+
+MovieLens ratings use a five-point scale. Valid ratings are converted to the existing ten-point scale (`rating × 2`), after which only ratings of at least 3.5/5 (7/10) become positive implicit ALS evidence. Lower ratings are counted and skipped rather than treated as positive. Repeated ratings for the same external user/movie pass through the same latest-state, confidence, saturation, and minimum-item logic as native data.
+
+Native decay uses the real training time. Applying that clock to historical MovieLens releases would reduce decades-old bootstrap ratings almost to zero, so external decay is measured relative to the latest timestamp within the selected MovieLens dataset. This preserves relative recency inside MovieLens without representing external activity as recent TagMyMovie behavior; original timestamps remain unchanged in source-range metadata.
+
+### Training modes and reporting
+
+Training supports:
+
+```text
+CF_DATA_SOURCE=tagmymovie  # default; no MovieLens path read
+CF_DATA_SOURCE=movielens   # external movie bootstrap only
+CF_DATA_SOURCE=combined    # native plus namespaced external users
+MOVIELENS_DATASET_PATH=/path/to/ml-latest-small
+```
+
+The MovieLens path is mandatory only for `movielens` and `combined`. Dataset summaries and promoted model metadata separately record scanned and retained native/external counts. In combined mode, all users share item factors only where mapped movie identities overlap; their user identities never merge.
+
+ALS always receives an overall held-out evaluation. When combined data contains at least `CF_MIN_VALIDATION_USERS` native users, it additionally records native-only Recall/NDCG/Hit Rate and uses the native metrics for the recall promotion gate. When native data is insufficient, `nativeEvaluationAvailable=false` is explicit and overall bootstrap metrics are not presented as native performance.
+
+### Dataset and licensing limitations
+
+MovieLens remains development/portfolio bootstrap data governed by the terms distributed with the selected GroupLens release. This repository neither redistributes nor vendors its rows. Users must verify that their intended use complies with those terms.
+
+MovieLens users are not TagMyMovie users; its historical movie-rating distribution, coverage, timestamps, and user behavior differ from this application. TMDB links may be absent or stale, TV is missing, and catalogue intersection can be small. MovieLens metrics demonstrate pipeline mechanics only and are not evidence of real TagMyMovie production quality.
+
+### Phase boundary
+
+Phase 13 supplies optional external training evidence and source-aware validation. It does not map anonymous/current application users onto MovieLens identities or infer a collaborative vector for a user absent from the trained mapping; new-user inference begins in Phase 14.

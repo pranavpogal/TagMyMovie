@@ -26,6 +26,7 @@ class TrainingResult:
     version_directory: Path
     metrics: EvaluationMetrics
     metadata: dict[str, Any]
+    native_metrics: EvaluationMetrics | None = None
 
 
 def train_and_promote(
@@ -36,6 +37,8 @@ def train_and_promote(
     data_end: datetime | None,
     trained_at: datetime | None = None,
     model: Any | None = None,
+    data_source: str = "tagmymovie",
+    source_counts: dict[str, int] | None = None,
 ) -> TrainingResult:
     settings.validate()
     if dataset.matrix.shape[0] == 0 or dataset.matrix.shape[1] == 0:
@@ -55,7 +58,26 @@ def train_and_promote(
     )
     if not metrics_are_finite(metrics):
         raise TrainingValidationError("candidate produced non-finite metrics")
-    if metrics.recall_at_k < settings.minimum_recall_at_k:
+    native_held_out = {
+        user_index: item_index
+        for user_index, item_index in held_out.items()
+        if not dataset.mappings.users[user_index].startswith("movielens:")
+    }
+    native_metrics = None
+    if (
+        data_source == "combined"
+        and len(native_held_out) >= settings.minimum_validation_users
+    ):
+        native_metrics = evaluate_model(
+            candidate,
+            training_matrix,
+            native_held_out,
+            k=settings.evaluation_k,
+        )
+        if not metrics_are_finite(native_metrics):
+            raise TrainingValidationError("candidate produced non-finite native metrics")
+    promotion_metrics = native_metrics or metrics
+    if promotion_metrics.recall_at_k < settings.minimum_recall_at_k:
         raise TrainingValidationError("candidate recall is below the promotion threshold")
 
     timestamp = trained_at or datetime.now(timezone.utc)
@@ -63,13 +85,10 @@ def train_and_promote(
         f"{settings.model_version}-{timestamp.strftime('%Y%m%d-%H%M%S-%f')}-"
         f"{settings.random_seed}"
     )
-    metrics_payload = {
-        f"recallAt{metrics.k}": metrics.recall_at_k,
-        f"ndcgAt{metrics.k}": metrics.ndcg_at_k,
-        f"hitRateAt{metrics.k}": metrics.hit_rate_at_k,
-        "k": metrics.k,
-        "validationUsers": metrics.validation_users,
-    }
+    metrics_payload = _metrics_payload(metrics)
+    native_metrics_payload = (
+        _metrics_payload(native_metrics) if native_metrics is not None else None
+    )
     metadata = {
         "modelVersion": settings.model_version,
         "artifactVersion": version_name,
@@ -85,9 +104,12 @@ def train_and_promote(
         "matrixOrientation": "users_by_items",
         "matrixVersion": dataset.matrix_version,
         "confidenceVersion": dataset.confidence_version,
+        "dataSource": data_source,
+        "sourceCounts": source_counts or {},
         "dataStart": data_start.isoformat() if data_start else None,
         "dataEnd": data_end.isoformat() if data_end else None,
         "metrics": metrics_payload,
+        "nativeMetrics": native_metrics_payload,
     }
     version_directory = promote_model_artifacts(
         model=candidate,
@@ -95,6 +117,8 @@ def train_and_promote(
         metadata=metadata,
         evaluation={
             **metrics_payload,
+            "nativeMetrics": native_metrics_payload,
+            "nativeEvaluationAvailable": native_metrics is not None,
             "method": "deterministic_leave_one_out",
             "randomSeed": settings.random_seed,
             "passed": True,
@@ -102,4 +126,14 @@ def train_and_promote(
         artifact_directory=settings.artifact_directory,
         version_name=version_name,
     )
-    return TrainingResult(version_directory, metrics, metadata)
+    return TrainingResult(version_directory, metrics, metadata, native_metrics)
+
+
+def _metrics_payload(metrics: EvaluationMetrics) -> dict[str, float | int]:
+    return {
+        f"recallAt{metrics.k}": metrics.recall_at_k,
+        f"ndcgAt{metrics.k}": metrics.ndcg_at_k,
+        f"hitRateAt{metrics.k}": metrics.hit_rate_at_k,
+        "k": metrics.k,
+        "validationUsers": metrics.validation_users,
+    }

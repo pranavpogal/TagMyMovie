@@ -28,6 +28,10 @@ class MatrixSummary:
     users: int = 0
     items: int = 0
     interactions: int = 0
+    scanned_native: int = 0
+    scanned_external: int = 0
+    interactions_native: int = 0
+    interactions_external: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return asdict(self)
@@ -63,6 +67,10 @@ def build_interaction_matrix(
     signatures: set[tuple[Any, ...]] = set()
     for interaction in interactions:
         summary.scanned += 1
+        if interaction.get("dataSource") == "movielens":
+            summary.scanned_external += 1
+        else:
+            summary.scanned_native += 1
         signature = _signature(interaction)
         if signature is None:
             summary.invalid += 1
@@ -74,6 +82,14 @@ def build_interaction_matrix(
         unique.append(interaction)
 
     effective = _latest_state_interactions(unique)
+    external_timestamps = [
+        interaction["createdAt"]
+        for interaction in effective
+        if interaction.get("dataSource") == "movielens"
+    ]
+    external_reference_time = (
+        max(external_timestamps) if external_timestamps else reference_time
+    )
     pair_confidence: dict[tuple[str, str], _PairConfidence] = {}
     for interaction in effective:
         user_id = str(interaction.get("user") or "").strip()
@@ -91,7 +107,13 @@ def build_interaction_matrix(
             continue
         created_at = interaction["createdAt"]
         effective_weight = base * recency_multiplier(
-            created_at, now=reference_time, decay_factor=settings.decay_factor
+            created_at,
+            now=(
+                external_reference_time
+                if interaction.get("dataSource") == "movielens"
+                else reference_time
+            ),
+            decay_factor=settings.decay_factor,
         )
         pair = pair_confidence.setdefault((user_id, item_key), _PairConfidence())
         if interaction.get("eventType") in WEAK_POSITIVE_EVENTS:
@@ -145,6 +167,10 @@ def build_interaction_matrix(
     summary.users = matrix.shape[0]
     summary.items = matrix.shape[1]
     summary.interactions = matrix.nnz
+    summary.interactions_external = sum(
+        1 for (user_id, _), _ in retained.items() if user_id.startswith("movielens:")
+    )
+    summary.interactions_native = summary.interactions - summary.interactions_external
     return CollaborativeDataset(
         matrix=matrix,
         mappings=mappings,

@@ -109,3 +109,37 @@ def test_zero_recall_candidate_is_not_promoted(tmp_path: Path) -> None:
         )
 
     assert not (tmp_path / "current").exists()
+
+
+def test_combined_training_records_separate_native_validation(tmp_path: Path) -> None:
+    combined = CollaborativeDataset(
+        csr_matrix([[1, 1, 0], [0, 1, 1]], dtype="float32"),
+        MatrixMappings(("native-user", "movielens:1"), ("movie:1", "movie:2", "movie:3")),
+        MatrixSummary(
+            users=2,
+            items=3,
+            interactions=4,
+            interactions_native=2,
+            interactions_external=2,
+        ),
+        "matrix-v1",
+    )
+    result = train_and_promote(
+        combined,
+        settings(tmp_path),
+        data_start=None,
+        data_end=None,
+        model=FakeModel(),
+        data_source="combined",
+        source_counts={"tagmymovieRecords": 2, "movielensRecords": 2},
+    )
+
+    assert result.native_metrics is not None
+    assert result.native_metrics.validation_users == 1
+    assert result.metadata["dataSource"] == "combined"
+    assert result.metadata["sourceCounts"]["movielensRecords"] == 2
+    evaluation = json.loads(
+        (tmp_path / "current" / "evaluation.json").read_text(encoding="utf-8")
+    )
+    assert evaluation["nativeEvaluationAvailable"] is True
+    assert evaluation["nativeMetrics"]["validationUsers"] == 1

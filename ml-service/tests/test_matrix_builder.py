@@ -134,3 +134,48 @@ def test_confidence_uses_decay_cap_and_float32(tmp_path: Path) -> None:
 
     assert dataset.matrix.data[0] == pytest.approx(2)
     assert dataset.matrix.dtype.name == "float32"
+
+
+def test_summary_records_native_and_external_matrix_counts(tmp_path: Path) -> None:
+    interactions = [
+        {**event("native", "1", "favourite_add"), "dataSource": "tagmymovie"},
+        {**event("movielens:1", "2", "rating_submit", value=10), "dataSource": "movielens"},
+    ]
+    dataset = build_interaction_matrix(
+        interactions,
+        valid_user_ids={"native", "movielens:1"},
+        valid_item_keys={"movie:1", "movie:2"},
+        settings=settings(tmp_path, minimum_user_items=1),
+        now=NOW,
+    )
+
+    assert dataset.summary.scanned_native == 1
+    assert dataset.summary.scanned_external == 1
+    assert dataset.summary.interactions_native == 1
+    assert dataset.summary.interactions_external == 1
+
+
+def test_external_decay_is_relative_to_movielens_dataset_end(tmp_path: Path) -> None:
+    old = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    interactions = [
+        {
+            **event("movielens:1", "1", "rating_submit", value=9),
+            "createdAt": old,
+            "dataSource": "movielens",
+        },
+        {
+            **event("movielens:1", "2", "rating_submit", value=9),
+            "createdAt": old + timedelta(days=1),
+            "dataSource": "movielens",
+        },
+    ]
+    dataset = build_interaction_matrix(
+        interactions,
+        valid_user_ids={"movielens:1"},
+        valid_item_keys={"movie:1", "movie:2"},
+        settings=settings(tmp_path),
+        now=NOW,
+    )
+
+    values = dataset.matrix.toarray()[0]
+    assert sorted(values) == pytest.approx(sorted([3 * 0.98, 3]))
