@@ -104,6 +104,37 @@ class VectorSearchSettings:
             )
 
 
+@dataclass(frozen=True)
+class ProfileSettings:
+    version: str
+    decay_factor: float
+    weak_positive_cap: float
+    negative_centroid_scale: float
+
+    @classmethod
+    def from_env(cls) -> "ProfileSettings":
+        settings = cls(
+            version=os.getenv("PROFILE_VERSION", "user-profile-v1").strip(),
+            decay_factor=_float("RECENCY_DECAY_FACTOR", 0.98, 0.000001),
+            weak_positive_cap=_float("PROFILE_WEAK_POSITIVE_CAP", 2.0, 0.000001),
+            negative_centroid_scale=_float(
+                "PROFILE_NEGATIVE_CENTROID_SCALE", 0.35, 0
+            ),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.version:
+            raise ConfigurationError("PROFILE_VERSION is required")
+        if self.decay_factor > 1:
+            raise ConfigurationError("RECENCY_DECAY_FACTOR must be at most one")
+        if self.negative_centroid_scale > 1:
+            raise ConfigurationError(
+                "PROFILE_NEGATIVE_CENTROID_SCALE must be at most one"
+            )
+
+
 def _integer(name: str, default: int, minimum: int = 0) -> int:
     raw = os.getenv(name)
     try:

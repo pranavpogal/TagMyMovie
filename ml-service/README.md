@@ -46,6 +46,12 @@ Defaults use `sentence-transformers/all-MiniLM-L6-v2`, embedding version `conten
 
 For Atlas, create the search index named by `VECTOR_INDEX_NAME` on `media_catalog.embedding` using `docs/atlas-vector-search-index.json`. Its checked-in definition uses 384 dimensions for the default MiniLM model; change `numDimensions` when selecting a model with a different output size.
 
+## Content-based user profiles
+
+`UserContentProfileBuilder` loads a user’s supported interactions, onboarding seed titles, and current-model catalogue embeddings. It applies the versioned centralized interaction weights and recency decay, caps repeated weak activity, uses only the newest rating/favourite state, subtracts a bounded negative centroid, and returns a normalized profile vector. Users without usable positive evidence receive an explicit `cold_start` result rather than an invalid or zero vector.
+
+Profile behavior is configured with `PROFILE_VERSION`, `RECENCY_DECAY_FACTOR`, `PROFILE_WEAK_POSITIVE_CAP`, and `PROFILE_NEGATIVE_CENTROID_SCALE`.
+
 ## Tests
 
 ```bash

@@ -754,3 +754,70 @@ Create the Atlas index named by `VECTOR_INDEX_NAME` on the `media_catalog` colle
 ### Phase boundary
 
 Phase 9 provides storage and nearest-neighbour search only. It does not calculate user taste profiles or turn interactions into a query vector; content-based user profiles begin in Phase 10.
+
+## Phase 10: content-based user profiles
+
+### Evidence and versioned weights
+
+The content profile consumes current-model embeddings for compound `mediaType + mediaId` identities from onboarding seed media and these interaction events:
+
+| Evidence | Base weight |
+| --- | ---: |
+| Detail view | 0.20 |
+| Search click | 0.50 |
+| Recommendation click | 0.75 |
+| Trailer play | 1.00 |
+| Review creation | 0.50 |
+| Rating 7.0–8.5 | 2.00 |
+| Rating 9.0–10.0 | 3.00 |
+| Favourite added | 4.00 |
+| Onboarding favourite | 4.00 |
+| Rating 3.5–5.0 | -1.00 |
+| Rating 1.0–3.0 | -3.00 |
+| Favourite removed | -1.50 |
+| Not interested | -4.00 |
+
+Ratings from 5.5 through 6.5 are neutral. All values live in the centralized `interaction-weights-v1` configuration. The latest rating replaces older ratings for the same title; likewise, only the latest add/remove favourite state and latest not-interested state are used. This prevents obsolete state transitions from cancelling or overpowering a user’s current preference. Onboarding seed media receive their weight directly when no matching onboarding interaction exists, preventing double counting.
+
+### Decay, aggregation, and formula
+
+For an event age measured in fractional days:
+
+```text
+effective_weight = base_weight × RECENCY_DECAY_FACTOR ^ days_since_event
+```
+
+`RECENCY_DECAY_FACTOR` defaults to `0.98`. Future timestamps are treated as age zero and are never boosted. Repeated weak positive signals (views, search/recommendation clicks, and trailer plays) are summed per media and capped together at `PROFILE_WEAK_POSITIVE_CAP=2.0`. Strong explicit signals are then added, ensuring repeated browsing cannot outweigh one favourite weight of 4.0.
+
+Let `eᵢ` be a normalized media embedding, `wᵢ+` its aggregated positive weight, and `wᵢ-` the magnitude of its aggregated negative weight:
+
+```text
+W+ = Σ wᵢ+
+W- = Σ wᵢ-
+positive_centroid = Σ(wᵢ+ × eᵢ) / W+
+negative_centroid = Σ(wᵢ- × eᵢ) / W-
+negative_fraction = PROFILE_NEGATIVE_CENTROID_SCALE × min(1, W- / W+)
+raw_profile = positive_centroid - negative_fraction × negative_centroid
+profile = L2_normalize(raw_profile)
+```
+
+The negative scale defaults to `0.35`, so negative evidence changes direction without dominating positive taste. Invalid, non-finite, missing, and dimensionally inconsistent media vectors do not contribute.
+
+### Cold start and data access
+
+`ContentProfileRepository` reads the user’s supported interactions, `UserPreference.favouriteSeedMedia`, and only catalogue vectors matching the configured embedding model/version. `UserContentProfileBuilder` returns a versioned `ContentProfile` with total evidence weights and contributing-media count.
+
+If no usable positive evidence exists, no corresponding embeddings exist, or subtraction produces a zero/invalid vector, the result is explicitly `status=cold_start` with an empty vector and a reason. Negative-only history is not inverted into a speculative taste profile.
+
+Configuration:
+
+```text
+PROFILE_VERSION=user-profile-v1
+RECENCY_DECAY_FACTOR=0.98
+PROFILE_WEAK_POSITIVE_CAP=2.0
+PROFILE_NEGATIVE_CENTROID_SCALE=0.35
+```
+
+### Phase boundary
+
+Phase 10 builds an in-memory content query vector but does not yet generate candidates or train a collaborative model. Interaction aggregation for the collaborative sparse matrix begins in Phase 11; content candidate generation remains in its later assigned phase.

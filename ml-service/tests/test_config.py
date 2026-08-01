@@ -6,6 +6,7 @@ from app.config import (
     ConfigurationError,
     EmbeddingSettings,
     FeatureTextSettings,
+    ProfileSettings,
     Settings,
     VectorSearchSettings,
 )
@@ -88,3 +89,17 @@ def test_vector_search_settings_validate_candidate_overfetch(
     monkeypatch.setenv("VECTOR_NUM_CANDIDATES", "10")
     with pytest.raises(ConfigurationError, match="at least"):
         VectorSearchSettings.from_env()
+
+
+def test_profile_settings_are_configurable_and_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RECENCY_DECAY_FACTOR", "0.95")
+    monkeypatch.setenv("PROFILE_WEAK_POSITIVE_CAP", "1.5")
+    settings = ProfileSettings.from_env()
+    assert settings.decay_factor == 0.95
+    assert settings.weak_positive_cap == 1.5
+
+    monkeypatch.setenv("PROFILE_NEGATIVE_CENTROID_SCALE", "1.1")
+    with pytest.raises(ConfigurationError, match="at most one"):
+        ProfileSettings.from_env()
