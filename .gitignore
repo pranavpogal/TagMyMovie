@@ -18,3 +18,11 @@ server/force-pwd.js
 server/inspect-users.js
 server/list-users.js
 server/test-mongo.js
+
+ml-service/.env
+ml-service/.venv/
+ml-service/**/__pycache__/
+ml-service/.pytest_cache/
+ml-service/artifacts/
+ml-service/data/
+*.pyc

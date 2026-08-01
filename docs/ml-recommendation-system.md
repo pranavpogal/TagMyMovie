@@ -506,3 +506,128 @@ This prevents incomplete or dimensionally inconsistent vectors from entering the
 ### Phase boundary
 
 Phase 5 adds only the collection model, indexes, consistency validation, tests, and documentation. It does not call TMDB, create catalogue records, generate feature text, calculate hashes, generate embeddings, or build a vector index. Those operations begin with the idempotent Python catalogue-ingestion job in Phase 6.
+
+## Phase 6: TMDB catalogue ingestion
+
+### Python job structure
+
+Phase 6 introduces the Python `ml-service` foundation with separate modules for:
+
+```text
+Configuration
+Structured logging
+MongoDB connection and indexes
+TMDB HTTP access
+TMDB-to-catalogue normalization
+Catalogue persistence
+Pipeline orchestration
+CLI entry point
+Isolated tests
+```
+
+The ingestion command is:
+
+```bash
+cd ml-service
+python -m jobs.build_media_catalog
+```
+
+It is an offline job. It is not invoked by an Express/FastAPI request and is not run during service startup.
+
+### Source coverage
+
+The job imports configurable pages from:
+
+| Media type | Sources |
+| --- | --- |
+| Movies | Popular, top rated, trending weekly, now playing |
+| TV | Popular, top rated, trending weekly, currently airing |
+
+Each compound `mediaType + tmdbId` is fetched at most once per run even if it appears in multiple lists or pages.
+
+For each discovered title, one TMDB detail call uses `append_to_response=credits,keywords`. This avoids separate detail, credits, and keyword calls while collecting overview, genres, cast, director/creators, keywords, languages, dates, popularity, vote data, and image paths.
+
+### HTTP reliability
+
+The TMDB client provides:
+
+- Configurable request timeout.
+- Configurable request pacing.
+- Exponential backoff for timeouts, connection failures, HTTP 429, and HTTP 5xx.
+- `Retry-After` support for rate-limit responses.
+- No retries for permanent HTTP 4xx responses.
+- API-key query authentication or bearer-token authentication.
+- Bounded retry attempts with no infinite loop.
+
+Individual list pages and titles fail independently. Their failures are counted and logged without exposing credentials or full payloads, while remaining records continue processing. Configuration, MongoDB, and other pipeline-level failures return a non-zero process status. A completed partial sync returns its explicit failed count for monitoring.
+
+### Normalization
+
+TMDB responses are normalized into the Phase 5 `media_catalog` contract. Normalization:
+
+- Converts TMDB IDs to strings.
+- Preserves movie/TV identity.
+- Collapses repeated whitespace.
+- Deduplicates genre IDs, people, languages, and keywords while preserving order.
+- Limits cast and keyword list lengths through configuration.
+- Extracts movie directors from crew jobs.
+- Extracts TV creators from `created_by`.
+- Handles both movie and TV keyword response shapes.
+- Parses valid dates into timezone-aware UTC datetimes.
+- Uses `null` dates/years when TMDB dates are absent or invalid.
+- Bounds popularity, vote average, and vote count at valid non-negative values.
+- Rejects details without a numeric TMDB ID or title.
+
+### Incremental and full modes
+
+`CATALOGUE_SYNC_MODE=incremental` skips details synchronized within `CATALOGUE_INCREMENTAL_MAX_AGE_HOURS`. `full` refreshes every title discovered during the run.
+
+Writes use unordered MongoDB bulk upserts in configurable batches. The job reports:
+
+```text
+discovered
+fetched
+created
+updated
+unchanged
+failed
+```
+
+Metadata comparisons distinguish updated and unchanged records. MongoDB reads are timezone-aware so stored dates compare consistently with normalized UTC values.
+
+The upsert `$set` contains catalogue metadata only. Existing `featureText`, `featureHash`, embeddings, dimensions, model names, and versions are never overwritten. New records receive empty embedding placeholders through `$setOnInsert`. Consequently, unchanged titles preserve their embeddings; changed metadata remains available for the Phase 7/8 feature-hash checks to identify and regenerate stale embeddings.
+
+### Configuration
+
+The job reuses existing environment names where possible:
+
+```text
+MONGODB_URL
+TMDB_BASE_URL
+TMDB_KEY
+```
+
+It also supports:
+
+```text
+MONGODB_DATABASE
+TMDB_API_KEY
+TMDB_ACCESS_TOKEN
+CATALOGUE_MOVIE_PAGES
+CATALOGUE_TV_PAGES
+CATALOGUE_SYNC_MODE
+CATALOGUE_INCREMENTAL_MAX_AGE_HOURS
+CATALOGUE_BATCH_SIZE
+CATALOGUE_CAST_LIMIT
+CATALOGUE_KEYWORD_LIMIT
+TMDB_REQUEST_TIMEOUT_SECONDS
+TMDB_MAX_RETRIES
+TMDB_RETRY_BACKOFF_SECONDS
+TMDB_REQUESTS_PER_SECOND
+```
+
+The `.env.example` contains empty credential values. The actual `ml-service/.env`, virtual environment, datasets, caches, and generated artifacts are ignored by Git.
+
+### Phase boundary
+
+Phase 6 does not generate deterministic feature text, compute hashes, load a sentence transformer, generate embeddings, build FAISS indexes, or expose HTTP inference. Those begin in later phases.
