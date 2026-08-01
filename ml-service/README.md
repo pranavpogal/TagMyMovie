@@ -30,6 +30,16 @@ The job is an offline command. It is not run by an HTTP request or service start
 
 The module also identifies stale embeddings from changes to the feature hash, embedding model/version, vector dimension, or vector values. It does not generate embeddings itself.
 
+## Build content embeddings and index
+
+```bash
+python -m jobs.build_content_index
+```
+
+The offline command lazily loads the configured sentence-transformer once, embeds stale catalogue records in batches, writes normalized vectors and their model metadata to MongoDB, and atomically replaces a local FAISS inner-product index plus its identity manifest. It retries a failed batch record-by-record so one malformed title does not discard the other items.
+
+Defaults use `sentence-transformers/all-MiniLM-L6-v2`, embedding version `content-embedding-v1`, batches of 64, and artifacts under `artifacts/content`. The model is downloaded by the sentence-transformers library on its first use. Catalogue ingestion must have populated MongoDB first.
+
 ## Tests
 
 ```bash

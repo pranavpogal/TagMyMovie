@@ -671,3 +671,56 @@ These checks make catalogue metadata changes and model upgrades explicit rather 
 ### Phase boundary
 
 Phase 7 implements deterministic text generation, hashing, staleness checks, configuration, and isolated tests only. It does not load a sentence transformer, calculate or persist embeddings, build a vector index, schedule an embedding job, or expose HTTP inference. Content embeddings begin in Phase 8.
+
+## Phase 8: content embeddings
+
+### Offline command
+
+Run the content build independently from ingestion and HTTP startup:
+
+```bash
+cd ml-service
+python -m jobs.build_content_index
+```
+
+The command follows this local flow:
+
+```mermaid
+flowchart LR
+    A["MongoDB media catalogue"] --> B["Deterministic feature text and hash"]
+    B --> C{"Embedding stale?"}
+    C -- "No" --> D["Keep existing vector"]
+    C -- "Yes" --> E["Batched sentence-transformer encoding"]
+    E --> F["L2 normalization and validation"]
+    F --> G["MongoDB bulk update"]
+    D --> H["FAISS index snapshot"]
+    G --> H
+    H --> I["Identity manifest"]
+```
+
+The default pretrained model is `sentence-transformers/all-MiniLM-L6-v2`; another compatible sentence-transformer such as `intfloat/multilingual-e5-small` can be selected through configuration. No transformer is trained, and no paid embedding API is called. The model loader is process-cached, so a given model is loaded once per Python process.
+
+### Incremental generation and reliability
+
+Every catalogue record is scanned and its current deterministic feature text/hash is calculated. Existing vectors are retained when the feature hash, requested model, requested version, dimensions, and values are current. Stale records are encoded in configurable batches with `normalize_embeddings=True`, then independently normalized and checked for non-empty, finite, consistent dimensions before persistence.
+
+If batch encoding fails, each item is retried separately. Invalid records are counted without preventing valid siblings from being stored. MongoDB writes are unordered bulk operations and include the previously observed feature hash and update timestamp in their filter, preventing a concurrent catalogue change from being overwritten. The summary reports `scanned`, `unchanged`, `generated`, `persisted`, `failed`, and `indexed` counts.
+
+### FAISS artifact
+
+After persistence, records matching the configured model, version, and the feature hash calculated during the current run are sorted by compound media identity and written to an exact inner-product FAISS index. Failed or concurrently changed stale records are therefore excluded. Because all vectors are L2-normalized, inner product represents cosine similarity. A JSON manifest records the matching FAISS row order, compound `mediaType + tmdbId` identities, dimension, count, backend, model, and version. Temporary files are replaced atomically and generated artifacts remain excluded from Git.
+
+Configuration:
+
+```text
+EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
+EMBEDDING_VERSION=content-embedding-v1
+EMBEDDING_BATCH_SIZE=64
+VECTOR_BACKEND=faiss
+VECTOR_INDEX_NAME=media_embedding_index
+CONTENT_ARTIFACT_DIRECTORY=artifacts/content
+```
+
+### Phase boundary
+
+Phase 8 generates and stores embeddings and builds the local FAISS artifact. It does not yet expose the backend-neutral vector-search interface, MongoDB/FAISS store implementations, or candidate search API; those belong to Phase 9.

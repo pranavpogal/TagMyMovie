@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.config import ConfigurationError, FeatureTextSettings, Settings
+from app.config import ConfigurationError, EmbeddingSettings, FeatureTextSettings, Settings
 
 
 def test_settings_reuse_existing_environment_names(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -45,3 +45,24 @@ def test_feature_text_limits_are_configurable(monkeypatch: pytest.MonkeyPatch) -
 
     assert settings.cast_limit == 8
     assert settings.keyword_limit == 12
+
+
+def test_embedding_settings_have_local_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("MONGODB_URL", "mongodb://localhost/tagmymovie")
+
+    settings = EmbeddingSettings.from_env()
+
+    assert settings.model_name == "sentence-transformers/all-MiniLM-L6-v2"
+    assert settings.version == "content-embedding-v1"
+    assert settings.batch_size == 64
+    assert settings.vector_backend == "faiss"
+
+
+def test_embedding_settings_reject_unsupported_backend(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("MONGODB_URL", "mongodb://localhost/tagmymovie")
+    monkeypatch.setenv("VECTOR_BACKEND", "unknown")
+
+    with pytest.raises(ConfigurationError):
+        EmbeddingSettings.from_env()

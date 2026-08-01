@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 
 class ConfigurationError(ValueError):
@@ -19,6 +20,55 @@ class FeatureTextSettings:
             cast_limit=_integer("FEATURE_TEXT_CAST_LIMIT", 10, 1),
             keyword_limit=_integer("FEATURE_TEXT_KEYWORD_LIMIT", 20, 1),
         )
+
+
+@dataclass(frozen=True)
+class EmbeddingSettings:
+    mongodb_url: str
+    mongodb_database: str
+    model_name: str
+    version: str
+    batch_size: int
+    cast_limit: int
+    keyword_limit: int
+    vector_backend: str
+    index_name: str
+    artifact_directory: Path
+
+    @classmethod
+    def from_env(cls) -> "EmbeddingSettings":
+        settings = cls(
+            mongodb_url=os.getenv("MONGODB_URL", "").strip(),
+            mongodb_database=os.getenv("MONGODB_DATABASE", "tagmymovie").strip(),
+            model_name=os.getenv(
+                "EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+            ).strip(),
+            version=os.getenv("EMBEDDING_VERSION", "content-embedding-v1").strip(),
+            batch_size=_integer("EMBEDDING_BATCH_SIZE", 64, 1),
+            cast_limit=_integer("FEATURE_TEXT_CAST_LIMIT", 10, 1),
+            keyword_limit=_integer("FEATURE_TEXT_KEYWORD_LIMIT", 20, 1),
+            vector_backend=os.getenv("VECTOR_BACKEND", "faiss").strip().lower(),
+            index_name=os.getenv("VECTOR_INDEX_NAME", "media_embedding_index").strip(),
+            artifact_directory=Path(
+                os.getenv("CONTENT_ARTIFACT_DIRECTORY", "artifacts/content")
+            ).expanduser(),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.mongodb_url:
+            raise ConfigurationError("MONGODB_URL is required")
+        if not self.mongodb_database:
+            raise ConfigurationError("MONGODB_DATABASE is required")
+        if not self.model_name:
+            raise ConfigurationError("EMBEDDING_MODEL is required")
+        if not self.version:
+            raise ConfigurationError("EMBEDDING_VERSION is required")
+        if self.vector_backend != "faiss":
+            raise ConfigurationError("VECTOR_BACKEND must be faiss")
+        if not self.index_name or any(character in self.index_name for character in "/\\"):
+            raise ConfigurationError("VECTOR_INDEX_NAME must be a safe file name")
 
 
 def _integer(name: str, default: int, minimum: int = 0) -> int:
