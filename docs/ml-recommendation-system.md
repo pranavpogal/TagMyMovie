@@ -1126,3 +1126,60 @@ Thresholds and ceilings must be ordered. The model-recency factor is applied onc
 ### Phase boundary
 
 Phase 15 provides a transparent, dynamic collaborative-confidence signal and evidence contract. It does not yet blend collaborative candidates with content recommendations; that integration begins in Phase 16.
+
+## Phase 16: candidate generation
+
+### Independent pools
+
+`CandidateGenerationService` generates each source independently with configurable default limits:
+
+```text
+Content candidates:        150
+Collaborative candidates:  150
+Popularity candidates:      40
+Preference candidates:      40
+Seed-similarity candidates: 150 (media-detail requests only)
+```
+
+- Content candidates search the configured vector store with the ready user content-profile vector. A cold profile produces an empty content pool.
+- Collaborative candidates use the Phase 14 ALS inference path and preserve the Phase 15 collaborative confidence/fallback result.
+- Popularity candidates come from movie/TV catalogue rows satisfying both minimum vote count and minimum vote average, sorted by popularity, vote average, then vote count.
+- Preference candidates require at least one explicit preference and query genre IDs, original languages, and recognized release periods. Multiple preference categories combine as constraints; multiple release periods form alternatives.
+- Seed-similarity candidates search using the current title's stored embedding and exclude the title itself. This pool is omitted outside media-detail requests or when the compound seed identity has no embedding. The ordinary content pool remains the user-personalized detail-page pool.
+
+An empty pool does not prevent popularity, preferences, or another model from supplying candidates. Existing safe ALS fallback behavior is preserved.
+
+Configuration:
+
+```text
+CONTENT_CANDIDATE_LIMIT=150
+COLLABORATIVE_CANDIDATE_LIMIT=150
+POPULARITY_CANDIDATE_LIMIT=40
+PREFERENCE_CANDIDATE_LIMIT=40
+SEED_SIMILARITY_CANDIDATE_LIMIT=150
+VECTOR_NUM_CANDIDATES=300
+POPULARITY_MINIMUM_VOTE_COUNT=100
+POPULARITY_MINIMUM_VOTE_AVERAGE=6.0
+```
+
+Vector overfetch must cover both configured vector-pool limits. Vote average is constrained to the catalogue's zero-to-ten scale.
+
+### Compound merge and provenance
+
+Pools merge only by the compound key `mediaType:tmdbId`, so a movie and TV title sharing a TMDB numeric ID remain separate. The first occurrence establishes deterministic output order. A repeated item becomes one candidate with ordered provenance selected from:
+
+```javascript
+sourceModels: [
+  "content",
+  "collaborative",
+  "popularity",
+  "preferences",
+  "seed_similarity"
+]
+```
+
+Each candidate retains a separate `raw_scores` entry for every contributing source. Non-finite catalogue boundary values are replaced with zero; valid negative ALS values remain available for later normalization. No raw score is compared or blended in this phase.
+
+### Phase boundary
+
+Phase 16 produces deduplicated, provenance-rich candidate sets. Content similarity, ALS, and catalogue scores are still on different scales; deterministic normalization and its edge cases begin in Phase 17.

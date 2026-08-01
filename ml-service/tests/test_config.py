@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.config import (
+    CandidateGenerationSettings,
     ConfigurationError,
     CollaborativeDatasetSettings,
     CollaborativeInferenceSettings,
@@ -179,3 +180,24 @@ def test_collaborative_inference_overlap_thresholds_are_configurable(
     monkeypatch.setenv("CF_MODERATE_CONFIDENCE_CEILING", "0.7")
     with pytest.raises(ConfigurationError, match="ceilings"):
         CollaborativeInferenceSettings.from_env()
+
+
+def test_candidate_pool_defaults_and_vector_overfetch_are_configurable(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = CandidateGenerationSettings.from_env()
+    assert (
+        settings.content_limit,
+        settings.collaborative_limit,
+        settings.popularity_limit,
+        settings.preference_limit,
+    ) == (150, 150, 40, 40)
+
+    monkeypatch.setenv("SEED_SIMILARITY_CANDIDATE_LIMIT", "400")
+    with pytest.raises(ConfigurationError, match="cover"):
+        CandidateGenerationSettings.from_env()
+
+    monkeypatch.setenv("SEED_SIMILARITY_CANDIDATE_LIMIT", "150")
+    monkeypatch.setenv("POPULARITY_MINIMUM_VOTE_AVERAGE", "11")
+    with pytest.raises(ConfigurationError, match="at most ten"):
+        CandidateGenerationSettings.from_env()

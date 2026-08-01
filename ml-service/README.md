@@ -92,6 +92,12 @@ Inference never retrains ALS or writes per-user artifacts. Missing models, insuf
 
 Collaborative confidence is inactive below three mapped items, then moves through configurable low (3–5), moderate (6–9), and normal (10+) overlap tiers. Within a tier, the weight also reflects meaningful and unique positive activity, interaction freshness, model freshness, catalogue coverage, factor validity, and whether the factor is stored or temporary. The evidence is returned with the result, so the presence of an ALS artifact alone can never activate collaborative scoring.
 
+## Candidate generation
+
+The candidate generator independently requests up to 150 content-profile matches, 150 ALS recommendations, 40 vote-qualified popularity titles, and 40 titles matching explicit genre/language/release-period preferences. A media-detail request can additionally request 150 titles similar to the current compound item. A cold profile or missing seed embedding returns an empty corresponding pool without preventing the other configured pools from contributing.
+
+Pools merge strictly by `mediaType:tmdbId`; movie and TV identifiers cannot collide. Each merged candidate retains ordered `source_models`, source-specific raw scores, and catalogue metadata. Raw content, ALS, and catalogue scores intentionally remain unblended until Phase 17 normalization.
+
 ## Tests
 
 ```bash

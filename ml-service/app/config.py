@@ -105,6 +105,48 @@ class VectorSearchSettings:
 
 
 @dataclass(frozen=True)
+class CandidateGenerationSettings:
+    content_limit: int = 150
+    collaborative_limit: int = 150
+    popularity_limit: int = 40
+    preference_limit: int = 40
+    seed_similarity_limit: int = 150
+    vector_num_candidates: int = 300
+    popularity_minimum_vote_count: int = 100
+    popularity_minimum_vote_average: float = 6.0
+
+    @classmethod
+    def from_env(cls) -> "CandidateGenerationSettings":
+        settings = cls(
+            content_limit=_integer("CONTENT_CANDIDATE_LIMIT", 150, 1),
+            collaborative_limit=_integer("COLLABORATIVE_CANDIDATE_LIMIT", 150, 1),
+            popularity_limit=_integer("POPULARITY_CANDIDATE_LIMIT", 40, 1),
+            preference_limit=_integer("PREFERENCE_CANDIDATE_LIMIT", 40, 1),
+            seed_similarity_limit=_integer("SEED_SIMILARITY_CANDIDATE_LIMIT", 150, 1),
+            vector_num_candidates=_integer("VECTOR_NUM_CANDIDATES", 300, 1),
+            popularity_minimum_vote_count=_integer(
+                "POPULARITY_MINIMUM_VOTE_COUNT", 100, 0
+            ),
+            popularity_minimum_vote_average=_float(
+                "POPULARITY_MINIMUM_VOTE_AVERAGE", 6.0, 0
+            ),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        largest_vector_pool = max(self.content_limit, self.seed_similarity_limit)
+        if self.vector_num_candidates < largest_vector_pool:
+            raise ConfigurationError(
+                "VECTOR_NUM_CANDIDATES must cover content and seed candidate limits"
+            )
+        if self.popularity_minimum_vote_average > 10:
+            raise ConfigurationError(
+                "POPULARITY_MINIMUM_VOTE_AVERAGE must be at most ten"
+            )
+
+
+@dataclass(frozen=True)
 class ProfileSettings:
     version: str
     decay_factor: float
