@@ -62,6 +62,16 @@ The offline job resolves interactions against existing users and compound catalo
 
 Negative ratings, favourite removals, not-interested events, and pure impressions remain in MongoDB but are not positive ALS entries. They are reserved for later exclusion and ranking logic.
 
+## Train the collaborative model
+
+```bash
+python -m jobs.train_collaborative_model
+```
+
+The job rebuilds the validated users-by-items dataset, makes a deterministic leave-one-out split, trains `implicit` ALS, generates held-out recommendations, and calculates actual Recall, NDCG, and Hit Rate at the configured K. A candidate is promoted only when factor shapes and values are valid, enough validation users exist, metrics are finite, and recall meets `CF_MIN_RECALL_AT_K`.
+
+Successful versions are safely serialized under `artifacts/collaborative/versions/`; an atomically replaced `current` symlink exposes the active model, mappings, metadata, and evaluation. Failed candidates leave the previous current model untouched.
+
 ## Tests
 
 ```bash

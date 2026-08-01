@@ -895,3 +895,72 @@ CF_MIN_USER_ITEMS=2
 ### Phase boundary
 
 Phase 11 builds and persists the validated dataset and stable mappings only. It does not fit latent factors or produce recommendations; implicit ALS training begins in Phase 12.
+
+## Phase 12: implicit ALS collaborative model
+
+### Training command and verified orientation
+
+Run:
+
+```bash
+cd ml-service
+python -m jobs.train_collaborative_model
+```
+
+The job reloads current MongoDB interactions and reuses the Phase 11 validation, aggregation, confidence, decay, weak-user filtering, sparse matrix, and stable mapping code before training. It uses the open-source `implicit` package and does not treat negative events as observed ALS positives.
+
+The installed `implicit 0.7.x` API explicitly accepts a users-by-items CSR matrix in `fit(user_items)`. Phase 12 passes the matrix without transposition and validates after fitting that `user_factors.shape[0]` equals the user count and `item_factors.shape[0]` equals the item count. Metadata records `matrixOrientation=users_by_items`; tests exercise the installed implementation rather than relying on an assumed orientation.
+
+Initial configurable hyperparameters are:
+
+```text
+CF_FACTORS=64
+CF_REGULARIZATION=0.05
+CF_ITERATIONS=30
+CF_ALPHA=20
+CF_RANDOM_SEED=42
+CF_MODEL_VERSION=als-v1
+```
+
+These are reproducible starting values, not claimed optima. The matrix remains float32 and the random seed is supplied directly to ALS.
+
+### Deterministic validation
+
+Before fitting, one observed item is deterministically held out for every eligible user with at least two matrix entries. The remaining users-by-items matrix trains ALS. For every validation user, the model generates up to `CF_EVALUATION_K=10` recommendations while filtering training items.
+
+Metrics are calculated from those actual ranked results:
+
+- Recall@K: fraction of validation users whose held-out item appears.
+- HitRate@K: the same binary hit fraction for one-item holdout.
+- NDCG@K: mean `1 / log2(rank + 1)` for hits, otherwise zero.
+
+No placeholder metric is written. Promotion requires at least `CF_MIN_VALIDATION_USERS`, correctly shaped finite factor matrices, finite metrics, and Recall@K greater than or equal to `CF_MIN_RECALL_AT_K` (default `0.01`). Empty/insufficient datasets or candidates below the threshold return a non-zero job status and are not promoted.
+
+### Safe artifacts and promotion
+
+Each successful candidate is serialized with the library-supported NPZ format into:
+
+```text
+artifacts/collaborative/versions/als-v1-<timestamp>-<seed>/
+  model.npz
+  user_mapping.json
+  item_mapping.json
+  model_metadata.json
+  evaluation.json
+```
+
+Metadata contains the actual training shape/non-zero count, hyperparameters, matrix/confidence versions, source-data time range, trained timestamp, orientation, and measured metrics. Mappings preserve the exact user/item indexes used to train the factor matrices.
+
+All candidate files are completed in a temporary version directory. Only after validation and serialization succeed is the directory finalized and an atomically replaced `current` symlink pointed to it. A failed training, evaluation, or write therefore leaves the previous working model active.
+
+Additional configuration:
+
+```text
+CF_EVALUATION_K=10
+CF_MIN_VALIDATION_USERS=1
+CF_MIN_RECALL_AT_K=0.01
+```
+
+### Phase boundary
+
+Phase 12 trains and validates TagMyMovie ALS artifacts. It does not import MovieLens data, blend external identifiers, or infer factors for unseen users; optional MovieLens bootstrap begins in Phase 13 and new-user collaborative inference remains Phase 14.

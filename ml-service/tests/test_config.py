@@ -5,6 +5,7 @@ import pytest
 from app.config import (
     ConfigurationError,
     CollaborativeDatasetSettings,
+    CollaborativeModelSettings,
     EmbeddingSettings,
     FeatureTextSettings,
     ProfileSettings,
@@ -118,3 +119,20 @@ def test_collaborative_dataset_settings_validate_confidence_caps(
     monkeypatch.setenv("CF_MAX_CONFIDENCE", "10")
     with pytest.raises(ConfigurationError, match="must not exceed"):
         CollaborativeDatasetSettings.from_env()
+
+
+def test_collaborative_model_settings_use_reproducible_defaults(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = CollaborativeModelSettings.from_env()
+    assert settings.factors == 64
+    assert settings.regularization == 0.05
+    assert settings.iterations == 30
+    assert settings.alpha == 20
+    assert settings.random_seed == 42
+    assert settings.evaluation_k == 10
+    assert settings.minimum_recall_at_k == 0.01
+
+    monkeypatch.setenv("CF_MIN_RECALL_AT_K", "1.1")
+    with pytest.raises(ConfigurationError, match="at most one"):
+        CollaborativeModelSettings.from_env()

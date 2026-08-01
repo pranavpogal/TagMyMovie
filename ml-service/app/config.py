@@ -180,6 +180,47 @@ class CollaborativeDatasetSettings:
             )
 
 
+@dataclass(frozen=True)
+class CollaborativeModelSettings:
+    artifact_directory: Path
+    model_version: str
+    factors: int
+    regularization: float
+    iterations: int
+    alpha: float
+    random_seed: int
+    evaluation_k: int
+    minimum_validation_users: int
+    minimum_recall_at_k: float = 0.01
+
+    @classmethod
+    def from_env(cls) -> "CollaborativeModelSettings":
+        settings = cls(
+            artifact_directory=Path(
+                os.getenv("CF_ARTIFACT_DIRECTORY", "artifacts/collaborative")
+            ).expanduser(),
+            model_version=os.getenv("CF_MODEL_VERSION", "als-v1").strip(),
+            factors=_integer("CF_FACTORS", 64, 1),
+            regularization=_float("CF_REGULARIZATION", 0.05, 0.000001),
+            iterations=_integer("CF_ITERATIONS", 30, 1),
+            alpha=_float("CF_ALPHA", 20, 0.000001),
+            random_seed=_integer("CF_RANDOM_SEED", 42, 0),
+            evaluation_k=_integer("CF_EVALUATION_K", 10, 1),
+            minimum_validation_users=_integer("CF_MIN_VALIDATION_USERS", 1, 1),
+            minimum_recall_at_k=_float("CF_MIN_RECALL_AT_K", 0.01, 0),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.model_version or any(
+            character in self.model_version for character in "/\\"
+        ):
+            raise ConfigurationError("CF_MODEL_VERSION must be a safe name")
+        if self.minimum_recall_at_k > 1:
+            raise ConfigurationError("CF_MIN_RECALL_AT_K must be at most one")
+
+
 def _integer(name: str, default: int, minimum: int = 0) -> int:
     raw = os.getenv(name)
     try:
