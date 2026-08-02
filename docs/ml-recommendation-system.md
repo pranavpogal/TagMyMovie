@@ -1386,3 +1386,42 @@ Relevance and diversity weights must sum to one. `DiversityRerankingService` enr
 ### Phase boundary
 
 Phase 20 produces a relevant, deterministic, diversified list. It does not yet generate user-facing reasons for individual selections; rule-based recommendation explanations begin in Phase 21.
+
+## Phase 21: recommendation explanations
+
+### Evidence-only rules
+
+`recommendation-explanations-v1` runs after diversity selection and attaches one to three concise reasons to each returned item. It is a deterministic rule engine; no LLM, generative API, or free-form inference is used.
+
+Eligible evidence and templates are:
+
+- Seed similarity above the configured threshold: `Similar themes to <current title>` (or a generic current-title form when the catalogue title is unavailable).
+- A real genre-ID intersection with explicit preferences: `Matches your <genre> preference`, using the catalogue genre name when available.
+- A real original-language match: `Matches your preference for <language>-language titles`.
+- Collaborative provenance, normalized score, and nonzero confidence: `Popular among users with similar preferences`.
+- Content-profile provenance and normalized similarity: `Recommended from your activity`.
+- High vote-quality plus an actual preferred-genre match: `Highly rated in genres you often choose`.
+- Popularity provenance and normalized evidence: `Popular and well-rated`.
+- Preference-pool provenance when a more specific matched label is unavailable: `Matches your selected preferences`.
+
+Signals are ordered by their actual bounded strength, then a fixed rule priority and text tie-breaker. At most three are returned. A source-specific safe fallback is used only when the item has that source provenance but falls below the display threshold, ensuring every returned item has at least one reason without inventing a preference match.
+
+### Privacy and result contract
+
+Collaborative explanations describe aggregate recommendation patterns only. They never claim that a particular user liked the title, identify another user, expose another user's review or history, or reveal raw ALS/matrix-factorization values. Unsupported genre, language, seed, collaborative, quality, or popularity explanations are never generated.
+
+Normal public serialization now includes `explanations` alongside identity, final score, source models, and ranking version. Internal ranking features remain absent. Diagnostic serialization continues to require the explicit debug method.
+
+Configuration:
+
+```text
+EXPLANATION_VERSION=recommendation-explanations-v1
+EXPLANATION_MAX_REASONS=3
+EXPLANATION_MIN_SIGNAL_SCORE=0.20
+```
+
+`HybridRankingService` resolves the current seed title only for media-detail requests, invokes the explanation service after optional diversity re-ranking, and records the explanation version internally.
+
+### Phase boundary
+
+Phase 21 explains already-selected recommendations. It does not yet label the overall response strategy or choose cold-start/trending/detail-page strategy contracts; those begin in Phase 22.

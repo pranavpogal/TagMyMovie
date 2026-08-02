@@ -106,6 +106,8 @@ Before ranking, the versioned feedback policy excludes exact not-interested titl
 
 After hybrid scoring, deterministic MMR diversity re-ranking balances 80% relevance against 20% maximum similarity to selected items. Similarity considers genres, franchises/title series, directors, major cast, release decades, languages, popularity bands, and catalogue embedding cosine when available. It preserves hybrid scores, limits a franchise to two items while alternatives exist, and returns up to 20 recommendations.
 
+Each diversified item receives one to three deterministic explanations drawn only from its real evidence: matched genre/language preferences, current-title similarity, content-profile activity, privacy-safe collaborative provenance, or measured quality/popularity. No LLM is used, and explanations never expose another user's identity, reviews, history, or latent-factor values.
+
 ## Tests
 
 ```bash

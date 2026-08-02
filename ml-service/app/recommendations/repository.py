@@ -169,10 +169,21 @@ class CandidateRepository:
         documents = self.catalogue.find(
             {"$or": identities},
             {"_id": 0, "mediaType": 1, "tmdbId": 1, "title": 1,
-             "genreIds": 1, "directors": 1, "cast": 1, "releaseYear": 1,
+             "genres": 1, "genreIds": 1, "directors": 1, "cast": 1, "releaseYear": 1,
              "originalLanguage": 1, "popularity": 1, "embedding": 1},
         )
         return {f"{item['mediaType']}:{item['tmdbId']}": item for item in documents}
+
+    def seed_title(self, item_key: str) -> str | None:
+        try:
+            media_type, media_id = item_key.split(":", 1)
+        except ValueError:
+            return None
+        document = self.catalogue.find_one(
+            {"mediaType": media_type, "tmdbId": media_id},
+            {"_id": 0, "title": 1},
+        )
+        return str(document.get("title")) if document and document.get("title") else None
 
 
 def _object_id(user_id: str | ObjectId) -> ObjectId:

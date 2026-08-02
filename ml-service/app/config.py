@@ -339,6 +339,33 @@ class DiversitySettings:
 
 
 @dataclass(frozen=True)
+class ExplanationSettings:
+    version: str = "recommendation-explanations-v1"
+    maximum_reasons: int = 3
+    minimum_signal_score: float = 0.20
+
+    @classmethod
+    def from_env(cls) -> "ExplanationSettings":
+        settings = cls(
+            version=os.getenv(
+                "EXPLANATION_VERSION", "recommendation-explanations-v1"
+            ).strip(),
+            maximum_reasons=_integer("EXPLANATION_MAX_REASONS", 3, 1),
+            minimum_signal_score=_float("EXPLANATION_MIN_SIGNAL_SCORE", 0.20, 0),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.version:
+            raise ConfigurationError("EXPLANATION_VERSION is required")
+        if self.maximum_reasons > 3:
+            raise ConfigurationError("EXPLANATION_MAX_REASONS must be at most three")
+        if self.minimum_signal_score > 1:
+            raise ConfigurationError("EXPLANATION_MIN_SIGNAL_SCORE must be at most one")
+
+
+@dataclass(frozen=True)
 class ProfileSettings:
     version: str
     decay_factor: float

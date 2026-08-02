@@ -64,6 +64,7 @@ class RankedCandidate:
     score: float
     ranking_version: str
     debug: RankingDebug
+    explanations: tuple[str, ...] = ()
 
     def to_public_dict(self) -> dict[str, Any]:
         return {
@@ -72,6 +73,7 @@ class RankedCandidate:
             "score": self.score,
             "sourceModels": list(self.candidate.source_models),
             "rankingVersion": self.ranking_version,
+            "explanations": list(self.explanations),
         }
 
     def to_debug_dict(self) -> dict[str, Any]:
@@ -87,6 +89,7 @@ class HybridRankingResult:
     excluded_reasons: Mapping[str, tuple[str, ...]] | None = None
     diversity_version: str | None = None
     diversity_diagnostics: Mapping[str, Any] | None = None
+    explanation_version: str | None = None
 
 
 class HybridRankingService:
@@ -98,6 +101,7 @@ class HybridRankingService:
         settings: HybridRankingSettings,
         feedback_service: Any | None = None,
         diversity_service: Any | None = None,
+        explanation_service: Any | None = None,
     ) -> None:
         settings.validate()
         self.candidate_service = candidate_service
@@ -105,6 +109,7 @@ class HybridRankingService:
         self.settings = settings
         self.feedback_service = feedback_service
         self.diversity_service = diversity_service
+        self.explanation_service = explanation_service
 
     def recommend(
         self,
@@ -146,6 +151,14 @@ class HybridRankingService:
             ranked = diversity.ranked
             diversity_version = diversity.version
             diversity_diagnostics = diversity.diagnostics
+        explanation_version = None
+        if self.explanation_service is not None:
+            seed_title = self.context_repository.seed_title(seed_item_key) if seed_item_key else None
+            explained = self.explanation_service.explain(
+                ranked, context=context, seed_title=seed_title
+            )
+            ranked = explained.ranked
+            explanation_version = explained.version
         return HybridRankingResult(
             ranked=ranked,
             collaborative_confidence=generated.collaborative_confidence,
@@ -154,6 +167,7 @@ class HybridRankingService:
             excluded_reasons=excluded_reasons,
             diversity_version=diversity_version,
             diversity_diagnostics=diversity_diagnostics,
+            explanation_version=explanation_version,
         )
 
 

@@ -12,6 +12,7 @@ from app.config import (
     CollaborativeModelSettings,
     DiversitySettings,
     EmbeddingSettings,
+    ExplanationSettings,
     FeatureTextSettings,
     FeedbackPolicySettings,
     HybridRankingSettings,
@@ -243,3 +244,15 @@ def test_diversity_configuration_preserves_a_unit_weight_budget(
     monkeypatch.setenv("DIVERSITY_WEIGHT", "0.4")
     with pytest.raises(ConfigurationError, match="sum to one"):
         DiversitySettings.from_env()
+
+
+def test_explanation_configuration_limits_public_reason_count(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = ExplanationSettings.from_env()
+    assert settings.version == "recommendation-explanations-v1"
+    assert settings.maximum_reasons == 3
+
+    monkeypatch.setenv("EXPLANATION_MAX_REASONS", "4")
+    with pytest.raises(ConfigurationError, match="at most three"):
+        ExplanationSettings.from_env()
