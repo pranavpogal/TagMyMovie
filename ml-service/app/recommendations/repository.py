@@ -6,6 +6,8 @@ from typing import Any
 from bson import ObjectId
 from pymongo.database import Database
 
+from app.recommendations.ranking import RankingContext
+
 
 PROJECTION = {
     "_id": 0,
@@ -91,6 +93,29 @@ class CandidateRepository:
         )
         return document.get("embedding") if document else None
 
+    def ranking_context(self, user_id: str | ObjectId) -> RankingContext:
+        preference = self.preferences.find_one(
+            {"user": _object_id(user_id)},
+            {
+                "_id": 0,
+                "preferredGenreIds": 1,
+                "preferredLanguages": 1,
+                "preferredReleasePeriods": 1,
+            },
+        ) or {}
+        return RankingContext(
+            preferred_genre_ids=frozenset(preference.get("preferredGenreIds") or []),
+            preferred_languages=frozenset(
+                str(value).lower()
+                for value in preference.get("preferredLanguages") or []
+            ),
+            preferred_release_periods=tuple(
+                _release_period_bounds(
+                    preference.get("preferredReleasePeriods") or []
+                )
+            ),
+        )
+
 
 def _object_id(user_id: str | ObjectId) -> ObjectId:
     if isinstance(user_id, ObjectId):
@@ -101,18 +126,30 @@ def _object_id(user_id: str | ObjectId) -> ObjectId:
 
 
 def _release_year_ranges(periods: list[str]) -> list[dict[str, int]]:
-    ranges: list[dict[str, int]] = []
+    return [
+        {
+            **({"$gte": minimum} if minimum is not None else {}),
+            **({"$lte": maximum} if maximum is not None else {}),
+        }
+        for minimum, maximum in _release_period_bounds(periods)
+    ]
+
+
+def _release_period_bounds(
+    periods: list[str],
+) -> list[tuple[int | None, int | None]]:
+    ranges: list[tuple[int | None, int | None]] = []
     for period in periods:
         normalized = str(period).strip().lower()
         decade = re.fullmatch(r"(\d{4})s", normalized)
         span = re.fullmatch(r"(\d{4})[-_](\d{4})", normalized)
         if decade:
             start = int(decade.group(1))
-            ranges.append({"$gte": start, "$lte": start + 9})
+            ranges.append((start, start + 9))
         elif span:
-            ranges.append({"$gte": int(span.group(1)), "$lte": int(span.group(2))})
+            ranges.append((int(span.group(1)), int(span.group(2))))
         elif normalized in {"classic", "pre_1980", "before_1980"}:
-            ranges.append({"$lt": 1980})
+            ranges.append((None, 1979))
         elif normalized in {"recent", "2020_present", "2020-present"}:
-            ranges.append({"$gte": 2020})
+            ranges.append((2020, None))
     return ranges

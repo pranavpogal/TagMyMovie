@@ -1214,3 +1214,84 @@ Candidate generation normalizes only after all independent pools are merged, ens
 ### Phase boundary
 
 Phase 17 makes heterogeneous source signals comparable on a bounded scale. It does not choose blending weights, calculate final ranking features, or sort a recommendation response; hybrid ranking begins in Phase 18.
+
+## Phase 18: hybrid ranking
+
+### Versioned features
+
+`hybrid-ranking-v1` calculates the following bounded features for every merged candidate:
+
+```text
+contentSimilarity
+collaborativeScore
+collaborativeConfidence
+genrePreferenceScore
+languagePreferenceScore
+releasePeriodPreferenceScore
+qualityScore
+popularityScore
+recencyOrFreshnessScore
+seedSimilarityScore
+negativePenalty
+seenPenalty
+```
+
+Content, collaborative, popularity, and seed similarity use their Phase 17 source-normalized values. Missing source scores contribute zero to that feature without altering stored normalization evidence. Genre preference is the fraction of selected genre IDs matched by the candidate; language and release-period matches are binary. Only explicitly configured preference categories participate in the preference-component average.
+
+Quality is the candidate's zero-to-ten vote average scaled to `[0, 1]`, multiplied by vote-count confidence that reaches one at the configured count. Freshness uses exponential half-life decay from the current calendar year and clamps future releases to age zero. Invalid or missing metadata safely contributes zero.
+
+Phase 19 will derive negative and seen evidence. Phase 18 already accepts their normalized per-item inputs, bounds them to `[0, 1]`, and converts them to capped score deductions; it does not yet define exclusions or feedback rules.
+
+### Continuous history-aware weights
+
+Let `c` be collaborative confidence clamped to `[0, 1]`. The positive weights interpolate continuously:
+
+```text
+content(c)       = 0.45 + (0.30 - 0.45) × c
+collaborative(c) = 0.40 × c
+preferences(c)   = 0.30 + (0.15 - 0.30) × c
+quality(c)       = 0.25 + (0.15 - 0.25) × c
+```
+
+They sum to one at every confidence value. Therefore:
+
+| User evidence | Content | Collaborative | Preferences | Quality/popularity |
+|---|---:|---:|---:|---:|
+| New (`c=0`) | 0.450 | 0.000 | 0.300 | 0.250 |
+| Limited (`c=0.5`) | 0.375 | 0.200 | 0.225 | 0.200 |
+| Established (`c=1`) | 0.300 | 0.400 | 0.150 | 0.150 |
+
+Within quality/popularity, defaults assign 70% to vote quality, 20% to normalized popularity, and 10% to freshness. On detail pages, seed similarity receives 35% of the content component when both seed and user content scores exist. If seed similarity is the only content-like evidence, it receives the full content component.
+
+The positive blend is reduced by capped negative and seen penalties, then clamped to `[0, 1]`. Results sort by descending score and then ascending compound key, making ties deterministic across runs.
+
+### Configuration and result contract
+
+All ranking weights and caps live in `HybridRankingSettings`; environment-exposed operational values are:
+
+```text
+RANKING_VERSION=hybrid-ranking-v1
+RANKING_MAX_COLLABORATIVE_WEIGHT=0.40
+RANKING_NEW_CONTENT_WEIGHT=0.45
+RANKING_NEW_PREFERENCE_WEIGHT=0.30
+RANKING_NEW_QUALITY_WEIGHT=0.25
+RANKING_ESTABLISHED_CONTENT_WEIGHT=0.30
+RANKING_ESTABLISHED_PREFERENCE_WEIGHT=0.15
+RANKING_ESTABLISHED_QUALITY_WEIGHT=0.15
+RANKING_SEED_CONTENT_SHARE=0.35
+RANKING_QUALITY_VOTE_SHARE=0.70
+RANKING_QUALITY_POPULARITY_SHARE=0.20
+RANKING_QUALITY_FRESHNESS_SHARE=0.10
+RANKING_FRESHNESS_HALF_LIFE_YEARS=8.0
+RANKING_QUALITY_VOTE_CONFIDENCE_COUNT=500
+RANKING_MAX_NEGATIVE_PENALTY=0.25
+RANKING_MAX_SEEN_PENALTY=0.15
+```
+
+Configuration validation requires bounded weights, positive decay/count settings, unit-sum new/established blends, and a unit-sum quality sub-blend. Every result carries `rankingVersion`.
+
+`HybridRankingService` connects candidate generation, explicit preference context, and ranking. `RankedCandidate.to_public_dict()` returns identity, final score, source provenance, and ranking version without internal features. Tests and diagnostics may explicitly call `to_debug_dict()` to inspect every feature, effective weight, component score, and pre-penalty positive score.
+
+### Phase boundary
+
+Phase 18 calculates and orders the hybrid score. It does not yet infer exact-item exclusions, negative similarity evidence, or repeated-exposure penalties from interaction history; those rules begin in Phase 19.

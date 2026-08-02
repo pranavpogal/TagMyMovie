@@ -95,5 +95,21 @@ def test_seed_embedding_uses_compound_identity_and_release_parser_is_bounded() -
     assert catalogue.find_one_calls[0][0]["tmdbId"] == "42"
     assert repository.item_embedding("invalid") is None
     assert _release_year_ranges(["classic", "bad", "2000_2005"]) == [
-        {"$lt": 1980}, {"$gte": 2000, "$lte": 2005}
+        {"$lte": 1979}, {"$gte": 2000, "$lte": 2005}
     ]
+
+
+def test_ranking_context_loads_normalized_explicit_preferences() -> None:
+    user_id = ObjectId()
+    preferences = Collection(one={
+        "preferredGenreIds": [18, 28],
+        "preferredLanguages": ["EN"],
+        "preferredReleasePeriods": ["1990s", "recent"],
+    })
+    repository = CandidateRepository(Database(Collection(), preferences))
+
+    context = repository.ranking_context(user_id)
+
+    assert context.preferred_genre_ids == {18, 28}
+    assert context.preferred_languages == {"en"}
+    assert context.preferred_release_periods == ((1990, 1999), (2020, None))

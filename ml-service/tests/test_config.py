@@ -12,6 +12,7 @@ from app.config import (
     CollaborativeModelSettings,
     EmbeddingSettings,
     FeatureTextSettings,
+    HybridRankingSettings,
     MovieLensSettings,
     ProfileSettings,
     Settings,
@@ -201,3 +202,18 @@ def test_candidate_pool_defaults_and_vector_overfetch_are_configurable(
     monkeypatch.setenv("POPULARITY_MINIMUM_VOTE_AVERAGE", "11")
     with pytest.raises(ConfigurationError, match="at most ten"):
         CandidateGenerationSettings.from_env()
+
+
+def test_hybrid_ranking_configuration_is_versioned_and_validated(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = HybridRankingSettings.from_env()
+    assert settings.version == "hybrid-ranking-v1"
+    assert settings.maximum_collaborative_weight == 0.4
+
+    monkeypatch.setenv("RANKING_VERSION", "")
+    with pytest.raises(ConfigurationError, match="RANKING_VERSION"):
+        HybridRankingSettings.from_env()
+
+    with pytest.raises(ConfigurationError, match="sum to one"):
+        HybridRankingSettings(new_user_content_weight=0.9).validate()

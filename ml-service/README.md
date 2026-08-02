@@ -100,6 +100,8 @@ Pools merge strictly by `mediaType:tmdbId`; movie and TV identifiers cannot coll
 
 Normalization uses tied rank percentiles independently within each source. Higher scores map toward 1 and lower scores toward 0 without comparing raw cosine, ALS, or popularity scales. Ties share their average rank, an all-equal multi-item pool receives neutral 0.5 scores, a one-item pool receives 1, and missing/invalid source scores remain absent. Normalized scores are still not blended or ranked until Phase 18.
 
+The versioned hybrid ranker now calculates normalized content, collaborative, explicit-preference, quality, popularity, freshness, seed-similarity, negative-penalty, and seen-penalty features. Collaborative weight grows continuously from zero to 0.40 with the Phase 15 confidence; content, preferences, and quality/popularity weights interpolate down so the positive weights always total one. Final ties use the compound item key. Public serialization omits the internal feature breakdown, while diagnostic serialization retains it for tests and troubleshooting.
+
 ## Tests
 
 ```bash

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -144,6 +145,118 @@ class CandidateGenerationSettings:
             raise ConfigurationError(
                 "POPULARITY_MINIMUM_VOTE_AVERAGE must be at most ten"
             )
+
+
+@dataclass(frozen=True)
+class HybridRankingSettings:
+    version: str = "hybrid-ranking-v1"
+    maximum_collaborative_weight: float = 0.40
+    new_user_content_weight: float = 0.45
+    new_user_preference_weight: float = 0.30
+    new_user_quality_weight: float = 0.25
+    established_content_weight: float = 0.30
+    established_preference_weight: float = 0.15
+    established_quality_weight: float = 0.15
+    seed_share_of_content: float = 0.35
+    quality_vote_share: float = 0.70
+    quality_popularity_share: float = 0.20
+    quality_freshness_share: float = 0.10
+    freshness_half_life_years: float = 8.0
+    quality_vote_confidence_count: int = 500
+    maximum_negative_penalty: float = 0.25
+    maximum_seen_penalty: float = 0.15
+
+    @classmethod
+    def from_env(cls) -> "HybridRankingSettings":
+        settings = cls(
+            version=os.getenv("RANKING_VERSION", "hybrid-ranking-v1").strip(),
+            maximum_collaborative_weight=_float(
+                "RANKING_MAX_COLLABORATIVE_WEIGHT", 0.40, 0
+            ),
+            new_user_content_weight=_float(
+                "RANKING_NEW_CONTENT_WEIGHT", 0.45, 0
+            ),
+            new_user_preference_weight=_float(
+                "RANKING_NEW_PREFERENCE_WEIGHT", 0.30, 0
+            ),
+            new_user_quality_weight=_float(
+                "RANKING_NEW_QUALITY_WEIGHT", 0.25, 0
+            ),
+            established_content_weight=_float(
+                "RANKING_ESTABLISHED_CONTENT_WEIGHT", 0.30, 0
+            ),
+            established_preference_weight=_float(
+                "RANKING_ESTABLISHED_PREFERENCE_WEIGHT", 0.15, 0
+            ),
+            established_quality_weight=_float(
+                "RANKING_ESTABLISHED_QUALITY_WEIGHT", 0.15, 0
+            ),
+            seed_share_of_content=_float("RANKING_SEED_CONTENT_SHARE", 0.35, 0),
+            quality_vote_share=_float("RANKING_QUALITY_VOTE_SHARE", 0.70, 0),
+            quality_popularity_share=_float(
+                "RANKING_QUALITY_POPULARITY_SHARE", 0.20, 0
+            ),
+            quality_freshness_share=_float(
+                "RANKING_QUALITY_FRESHNESS_SHARE", 0.10, 0
+            ),
+            freshness_half_life_years=_float(
+                "RANKING_FRESHNESS_HALF_LIFE_YEARS", 8.0, 0.000001
+            ),
+            quality_vote_confidence_count=_integer(
+                "RANKING_QUALITY_VOTE_CONFIDENCE_COUNT", 500, 1
+            ),
+            maximum_negative_penalty=_float(
+                "RANKING_MAX_NEGATIVE_PENALTY", 0.25, 0
+            ),
+            maximum_seen_penalty=_float("RANKING_MAX_SEEN_PENALTY", 0.15, 0),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.version:
+            raise ConfigurationError("RANKING_VERSION is required")
+        unit_values = (
+            self.maximum_collaborative_weight,
+            self.new_user_content_weight,
+            self.new_user_preference_weight,
+            self.new_user_quality_weight,
+            self.established_content_weight,
+            self.established_preference_weight,
+            self.established_quality_weight,
+            self.seed_share_of_content,
+            self.quality_vote_share,
+            self.quality_popularity_share,
+            self.quality_freshness_share,
+            self.maximum_negative_penalty,
+            self.maximum_seen_penalty,
+        )
+        if any(value < 0 or value > 1 for value in unit_values):
+            raise ConfigurationError(
+                "ranking weights and penalties must be between zero and one"
+            )
+        if not math.isclose(
+            self.quality_vote_share
+            + self.quality_popularity_share
+            + self.quality_freshness_share,
+            1.0,
+        ):
+            raise ConfigurationError("ranking quality component weights must sum to one")
+        if not math.isclose(
+            self.new_user_content_weight
+            + self.new_user_preference_weight
+            + self.new_user_quality_weight,
+            1.0,
+        ):
+            raise ConfigurationError("new-user ranking weights must sum to one")
+        if not math.isclose(
+            self.established_content_weight
+            + self.established_preference_weight
+            + self.established_quality_weight
+            + self.maximum_collaborative_weight,
+            1.0,
+        ):
+            raise ConfigurationError("established ranking weights must sum to one")
 
 
 @dataclass(frozen=True)
