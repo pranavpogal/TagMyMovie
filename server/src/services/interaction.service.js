@@ -9,6 +9,7 @@ export const frontendEventTypes = [
   "recommendation_click",
   "trailer_play",
   "detail_view",
+  "not_interested",
 ];
 
 export const frontendEventSources = {
@@ -16,6 +17,7 @@ export const frontendEventSources = {
   recommendation_click: "recommendation",
   trailer_play: "media_detail",
   detail_view: "media_detail",
+  not_interested: "recommendation",
 };
 
 const minutesToMs = (environmentName, fallbackMinutes) => {

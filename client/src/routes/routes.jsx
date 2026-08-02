@@ -7,6 +7,7 @@ import MediaSearch from "../pages/MediaSearch";
 import PasswordUpdate from "../pages/PasswordUpdate";
 import ReviewList from "../pages/ReviewList";
 import ProtectedPage from "../components/common/ProtectedPage";
+import PreferenceSettings from "../pages/PreferenceSettings";
 
 export const routesGen = {
   home: "/",
@@ -17,6 +18,7 @@ export const routesGen = {
   favouriteList: "/favourites",
   reviewList: "/reviews",
   passwordUpdate: "password-update",
+  preferenceSettings: "/preferences",
 };
 
 const routes = [
@@ -34,6 +36,15 @@ const routes = [
     path: "/search",
     element: <MediaSearch />,
     state: "search",
+  },
+  {
+    path: "/preferences",
+    element: (
+      <ProtectedPage>
+        <PreferenceSettings />
+      </ProtectedPage>
+    ),
+    state: "preferences",
   },
   {
     path: "/password-update",

@@ -5,6 +5,7 @@ import FavouriteBorderOutlinedIcon from "@mui/icons-material/FavoriteBorderOutli
 import SearchOutlinedIcon from "@mui/icons-material/SearchOutlined";
 import RateReviewOutlinedIcon from "@mui/icons-material/RateReviewOutlined";
 import LockResetOutlinedIcon from "@mui/icons-material/LockResetOutlined";
+import TuneOutlinedIcon from "@mui/icons-material/TuneOutlined";
 
 const main = [
   {
@@ -34,6 +35,12 @@ const main = [
 ];
 
 const user = [
+  {
+    display: "recommendation preferences",
+    path: "/preferences",
+    icon: <TuneOutlinedIcon />,
+    state: "preferences",
+  },
   {
     display: "favourites",
     path: "/favourites",

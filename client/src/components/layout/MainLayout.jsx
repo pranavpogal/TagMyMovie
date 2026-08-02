@@ -11,6 +11,7 @@ import Topbar from "../common/Topbar";
 import favouriteApi from "../../api/modules/favourite.api";
 import { setListFavourites, setUser } from "../../redux/features/userSlice";
 import "./main.css";
+import OnboardingGate from "../common/OnboardingGate";
 
 const MainLayout = () => {
   const dispatch = useDispatch();
@@ -47,6 +48,7 @@ const MainLayout = () => {
 
       {/* login modal */}
       <AuthModal />
+      <OnboardingGate />
       {/* login modal */}
 
       <Box display="flex" minHeight="100vh">

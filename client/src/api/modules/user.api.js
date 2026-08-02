@@ -6,6 +6,7 @@ const userEndpoints = {
   signup: "user/signup",
   getInfo: "user/info",
   passwordUpdate: "user/update-password",
+  preferences: "user/preferences",
 };
 
 const userApi = {
@@ -54,6 +55,22 @@ const userApi = {
         confirmNewPassword,
       });
 
+      return { response };
+    } catch (err) {
+      return { err };
+    }
+  },
+  getPreferences: async () => {
+    try {
+      const response = await privateClient.get(userEndpoints.preferences);
+      return { response };
+    } catch (err) {
+      return { err };
+    }
+  },
+  updatePreferences: async (preferences) => {
+    try {
+      const response = await privateClient.put(userEndpoints.preferences, preferences);
       return { response };
     } catch (err) {
       return { err };

@@ -4,7 +4,7 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import { LoadingButton } from "@mui/lab";
 import { Box, Button, Chip, Divider, Stack, Typography } from "@mui/material";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useParams } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -29,6 +29,7 @@ import RecommendSlide from "../components/common/RecommendSlide";
 import MediaSlide from "../components/common/MediaSlide";
 import MediaReview from "../components/common/MediaReview";
 import interactionApi from "../api/modules/interaction.api";
+import PersonalizedRecommendations from "../components/common/PersonalizedRecommendations";
 
 const MediaDetail = () => {
   const { mediaType, mediaId } = useParams();
@@ -39,6 +40,8 @@ const MediaDetail = () => {
   const [media, setMedia] = useState();
   const [onRequest, setOnRequest] = useState(false);
   const [genres, setGenres] = useState([]);
+  const [personalizedUnavailable, setPersonalizedUnavailable] = useState(false);
+  const handlePersonalizedUnavailable = useCallback(() => setPersonalizedUnavailable(true), []);
 
   const dispatch = useDispatch();
 
@@ -55,6 +58,7 @@ const MediaDetail = () => {
       dispatch(setGlobalLoading(false));
 
       if (response) {
+        setPersonalizedUnavailable(false);
         setMedia(response);
         setIsFavourite(response.isFavourite);
         setGenres(response.genres.slice(0, 2));
@@ -343,15 +347,22 @@ const MediaDetail = () => {
         {/* media reviews */}
 
         {/* media recommendation */}
-        <Container header="you may also like">
-          {media.recommend && media.recommend.length > 0 && (
+        <Container header={user ? "Recommended for You" : "you may also like"}>
+          {user && !personalizedUnavailable ? (
+            <PersonalizedRecommendations
+              context="media_detail"
+              seedMediaId={mediaId}
+              seedMediaType={mediaType}
+              excludeIds={[mediaId]}
+              onUnavailable={handlePersonalizedUnavailable}
+            />
+          ) : media.recommend && media.recommend.length > 0 ? (
             <RecommendSlide
               medias={media.recommend}
               mediaType={mediaType}
               onMediaClick={onRecommendationClick}
             />
-          )}
-          {(!media.recommend || media.recommend.length === 0) && (
+          ) : (
             <MediaSlide
               mediaType={mediaType}
               mediaCategory={tmdbConfigs.mediaCategory.top_rated}

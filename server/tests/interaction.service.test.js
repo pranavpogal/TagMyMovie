@@ -119,6 +119,7 @@ test("browser event allowlist excludes trusted state changes", () => {
     "recommendation_click",
     "trailer_play",
     "detail_view",
+    "not_interested",
   ]);
   assert.equal(frontendEventTypes.includes("favourite_add"), false);
   assert.equal(frontendEventTypes.includes("rating_submit"), false);
@@ -127,5 +128,6 @@ test("browser event allowlist excludes trusted state changes", () => {
     recommendation_click: "recommendation",
     trailer_play: "media_detail",
     detail_view: "media_detail",
+    not_interested: "recommendation",
   });
 });
