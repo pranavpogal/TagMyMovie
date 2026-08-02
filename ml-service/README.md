@@ -108,6 +108,8 @@ After hybrid scoring, deterministic MMR diversity re-ranking balances 80% releva
 
 Each diversified item receives one to three deterministic explanations drawn only from its real evidence: matched genre/language preferences, current-title similarity, content-profile activity, privacy-safe collaborative provenance, or measured quality/popularity. No LLM is used, and explanations never expose another user's identity, reviews, history, or latent-factor values.
 
+Every recommendation result now carries a versioned strategy selected from the provenance of the final returned items. Seeded, content/collaborative hybrid, content-only, collaborative-only, personalized hybrid, onboarding-preference, cold-start popularity, and TMDB fallback responses are distinguished accurately. Collaborative labels require nonzero collaborative confidence.
+
 ## Tests
 
 ```bash

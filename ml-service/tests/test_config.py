@@ -19,6 +19,7 @@ from app.config import (
     MovieLensSettings,
     ProfileSettings,
     Settings,
+    StrategySettings,
     VectorSearchSettings,
 )
 
@@ -256,3 +257,12 @@ def test_explanation_configuration_limits_public_reason_count(
     monkeypatch.setenv("EXPLANATION_MAX_REASONS", "4")
     with pytest.raises(ConfigurationError, match="at most three"):
         ExplanationSettings.from_env()
+
+
+def test_strategy_configuration_requires_a_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    assert StrategySettings.from_env().version == "recommendation-strategy-v1"
+    monkeypatch.setenv("RECOMMENDATION_STRATEGY_VERSION", "")
+    with pytest.raises(ConfigurationError, match="STRATEGY_VERSION"):
+        StrategySettings.from_env()

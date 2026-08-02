@@ -1425,3 +1425,36 @@ EXPLANATION_MIN_SIGNAL_SCORE=0.20
 ### Phase boundary
 
 Phase 21 explains already-selected recommendations. It does not yet label the overall response strategy or choose cold-start/trending/detail-page strategy contracts; those begin in Phase 22.
+
+## Phase 22: recommendation strategies
+
+### Final-evidence selection
+
+Every recommendation response now includes `strategy` and `strategyVersion=recommendation-strategy-v1`. Selection inspects only the final returned items after exclusions, ranking, diversity, and explanations. It does not infer a strategy merely because an artifact or requested input exists.
+
+Deterministic precedence and evidence are:
+
+| Strategy | Required final evidence |
+|---|---|
+| `seeded_hybrid` | A detail seed was supplied and at least one returned item retains `seed_similarity` provenance. |
+| `content_collaborative_hybrid` | Returned content and collaborative provenance, plus collaborative confidence greater than zero. |
+| `collaborative_based` | Active collaborative evidence without content, preference, or popularity provenance. |
+| `content_based` | Content evidence without active collaborative, preference, or popularity evidence. |
+| `personalized_hybrid` | Content or active collaborative evidence combined with other non-seed sources. |
+| `onboarding_preferences` | Explicit-preference candidates without content or active collaborative evidence. |
+| `cold_start_popular` | Popularity candidates without personalized evidence. |
+| `tmdb_fallback` | No ML/catalogue candidates remain, signalling the external fallback path for the serving layer. |
+
+Collaborative provenance is considered active only when the response-level collaborative confidence is nonzero. Therefore a stale or defensive candidate carrying a collaborative source cannot produce `collaborative_based` or `content_collaborative_hybrid` when confidence is zero. Supplying a seed key likewise cannot produce `seeded_hybrid` unless seed-similarity evidence survives into the returned list.
+
+The selection also records ordered active sources and whether collaborative evidence was active for internal diagnostics. Public response serialization includes strategy, strategy version, ranking version, and items; feedback exclusions and diversity diagnostics remain private.
+
+Configuration:
+
+```text
+RECOMMENDATION_STRATEGY_VERSION=recommendation-strategy-v1
+```
+
+### Phase boundary
+
+Phase 22 completes the in-process recommendation result contract. It does not yet expose that contract over HTTP; the structured FastAPI ML service begins in Phase 23.

@@ -90,6 +90,16 @@ class HybridRankingResult:
     diversity_version: str | None = None
     diversity_diagnostics: Mapping[str, Any] | None = None
     explanation_version: str | None = None
+    strategy: str = "tmdb_fallback"
+    strategy_version: str | None = None
+
+    def to_public_dict(self) -> dict[str, Any]:
+        return {
+            "strategy": self.strategy,
+            "strategyVersion": self.strategy_version,
+            "rankingVersion": self.ranking_version,
+            "items": [item.to_public_dict() for item in self.ranked],
+        }
 
 
 class HybridRankingService:
@@ -102,6 +112,7 @@ class HybridRankingService:
         feedback_service: Any | None = None,
         diversity_service: Any | None = None,
         explanation_service: Any | None = None,
+        strategy_settings: Any | None = None,
     ) -> None:
         settings.validate()
         self.candidate_service = candidate_service
@@ -110,6 +121,7 @@ class HybridRankingService:
         self.feedback_service = feedback_service
         self.diversity_service = diversity_service
         self.explanation_service = explanation_service
+        self.strategy_settings = strategy_settings
 
     def recommend(
         self,
@@ -159,6 +171,14 @@ class HybridRankingService:
             )
             ranked = explained.ranked
             explanation_version = explained.version
+        from app.recommendations.strategies import select_recommendation_strategy
+
+        selection = select_recommendation_strategy(
+            ranked,
+            collaborative_confidence=generated.collaborative_confidence,
+            seed_item_key=seed_item_key,
+            settings=self.strategy_settings,
+        )
         return HybridRankingResult(
             ranked=ranked,
             collaborative_confidence=generated.collaborative_confidence,
@@ -168,6 +188,8 @@ class HybridRankingService:
             diversity_version=diversity_version,
             diversity_diagnostics=diversity_diagnostics,
             explanation_version=explanation_version,
+            strategy=selection.strategy,
+            strategy_version=selection.version,
         )
 
 

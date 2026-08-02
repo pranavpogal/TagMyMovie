@@ -366,6 +366,25 @@ class ExplanationSettings:
 
 
 @dataclass(frozen=True)
+class StrategySettings:
+    version: str = "recommendation-strategy-v1"
+
+    @classmethod
+    def from_env(cls) -> "StrategySettings":
+        settings = cls(
+            version=os.getenv(
+                "RECOMMENDATION_STRATEGY_VERSION", "recommendation-strategy-v1"
+            ).strip()
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.version:
+            raise ConfigurationError("RECOMMENDATION_STRATEGY_VERSION is required")
+
+
+@dataclass(frozen=True)
 class ProfileSettings:
     version: str
     decay_factor: float
