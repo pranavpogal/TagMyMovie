@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from app.config import (
+    ApiSettings,
     CandidateGenerationSettings,
     ConfigurationError,
     CollaborativeDatasetSettings,
@@ -266,3 +267,16 @@ def test_strategy_configuration_requires_a_version(
     monkeypatch.setenv("RECOMMENDATION_STRATEGY_VERSION", "")
     with pytest.raises(ConfigurationError, match="STRATEGY_VERSION"):
         StrategySettings.from_env()
+
+
+def test_api_configuration_binds_locally_and_protects_debug_by_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = ApiSettings.from_env()
+    assert settings.host == "127.0.0.1"
+    assert settings.port == 8000
+    assert settings.internal_debug_key == ""
+
+    monkeypatch.setenv("ML_API_PORT", "70000")
+    with pytest.raises(ConfigurationError, match="65535"):
+        ApiSettings.from_env()

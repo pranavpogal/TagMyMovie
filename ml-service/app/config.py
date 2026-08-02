@@ -385,6 +385,29 @@ class StrategySettings:
 
 
 @dataclass(frozen=True)
+class ApiSettings:
+    host: str
+    port: int
+    internal_debug_key: str
+
+    @classmethod
+    def from_env(cls) -> "ApiSettings":
+        settings = cls(
+            host=os.getenv("ML_API_HOST", "127.0.0.1").strip(),
+            port=_integer("ML_API_PORT", 8000, 1),
+            internal_debug_key=os.getenv("ML_INTERNAL_DEBUG_KEY", "").strip(),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.host:
+            raise ConfigurationError("ML_API_HOST is required")
+        if self.port > 65535:
+            raise ConfigurationError("ML_API_PORT must be at most 65535")
+
+
+@dataclass(frozen=True)
 class ProfileSettings:
     version: str
     decay_factor: float

@@ -1458,3 +1458,50 @@ RECOMMENDATION_STRATEGY_VERSION=recommendation-strategy-v1
 ### Phase boundary
 
 Phase 22 completes the in-process recommendation result contract. It does not yet expose that contract over HTTP; the structured FastAPI ML service begins in Phase 23.
+
+## Phase 23: FastAPI ML service
+
+### Structured serving application
+
+The Python recommendation pipeline is exposed through a lifespan-managed FastAPI application:
+
+```text
+GET /health
+GET /ready
+GET /models/status
+GET /recommendations/{user_id}
+GET /similar/{media_type}/{media_id}
+GET /semantic-search
+```
+
+All public payloads use Pydantic schemas. Recommendation responses include a UUID recommendation ID, UTC generation timestamp, evidence-selected strategy, model versions, collaborative confidence, and structured items containing catalogue display metadata, final score, source provenance, and evidence-based reasons.
+
+The recommendation endpoint accepts `media_type`, bounded `limit`, `context`, paired `seed_media_id`/`seed_media_type`, `language`, repeated `genres`, `exclude_seen`, and `debug`. Media types, limits, language length, genres, and seed pairing are validated. Similar-title identity remains compound. Semantic-search queries accept the same media/language/genre filter contract and embed text with the configured content model.
+
+### Lifecycle, fallback, and safety
+
+Production startup creates one Mongo client, vector store, sentence-transformer embedder, and composed recommendation service. The Mongo client closes during application shutdown. Sentence-transformer loading is cached process-wide, and promoted collaborative artifacts use the validated version-path cache from Phase 14. Mapping, factor shape/value, and metadata failures raise the existing safe artifact boundary; collaborative inference then yields content fallback, while a cold content profile still leaves preference/popularity pools available.
+
+`/health` is process liveness. `/ready` separately reports MongoDB and content-index checks. `/models/status` reports embedding model/version/count and collaborative availability/version without exposing filesystem paths or connection details. Missing collaborative artifacts do not make the process unhealthy because fallback is supported.
+
+Every request records method, path, status, and internal latency in structured JSON logs. Unexpected errors log only their class internally and return `{\"detail\": \"internal service error\"}`; stack traces, database URLs, credentials, and artifact internals are absent from HTTP responses.
+
+`debug=true` is forbidden unless `ML_INTERNAL_DEBUG_KEY` is configured and exactly matches `X-Internal-Key`. Normal frontend calls cannot obtain ranking features. Administrative training/build/reload operations remain CLI jobs; no mutation or reload endpoint is exposed.
+
+Configuration and local startup:
+
+```text
+ML_API_HOST=127.0.0.1
+ML_API_PORT=8000
+ML_INTERNAL_DEBUG_KEY=
+```
+
+```bash
+cd ml-service
+source .venv/bin/activate
+uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+### Phase boundary
+
+Phase 23 exposes the ML service directly for internal/local use. Browsers must not call it directly; the authenticated Express proxy and response persistence begin in Phase 24.

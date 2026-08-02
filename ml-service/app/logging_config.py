@@ -17,6 +17,11 @@ class JsonFormatter(logging.Formatter):
             "stage",
             "media_type",
             "source",
+            "method",
+            "path",
+            "status",
+            "latency_ms",
+            "error_type",
             "page",
             "tmdb_id",
         ):

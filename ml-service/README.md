@@ -110,6 +110,14 @@ Each diversified item receives one to three deterministic explanations drawn onl
 
 Every recommendation result now carries a versioned strategy selected from the provenance of the final returned items. Seeded, content/collaborative hybrid, content-only, collaborative-only, personalized hybrid, onboarding-preference, cold-start popularity, and TMDB fallback responses are distinguished accurately. Collaborative labels require nonzero collaborative confidence.
 
+## Run the ML API
+
+```bash
+uvicorn app.api.main:app --host 127.0.0.1 --port 8000
+```
+
+FastAPI exposes `/health`, `/ready`, `/models/status`, `/recommendations/{user_id}`, `/similar/{media_type}/{media_id}`, and `/semantic-search`. Interactive local documentation is available at `/docs`. Debug recommendation output requires both `debug=true` and the private `X-Internal-Key` matching `ML_INTERNAL_DEBUG_KEY`; when no key is configured, debug access is disabled.
+
 ## Tests
 
 ```bash
