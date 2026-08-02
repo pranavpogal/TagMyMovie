@@ -1505,3 +1505,56 @@ uvicorn app.api.main:app --host 127.0.0.1 --port 8000
 ### Phase boundary
 
 Phase 23 exposes the ML service directly for internal/local use. Browsers must not call it directly; the authenticated Express proxy and response persistence begin in Phase 24.
+
+## Phase 24: Express recommendation API
+
+### Authenticated browser boundary
+
+The browser-facing endpoint is:
+
+```text
+GET /api/v1/recommendations
+```
+
+It is registered before the existing dynamic media route and protected by the normal JWT middleware. Express derives the MongoDB user ID exclusively from `req.user.id`. `userId`, `debug`, unknown fields, and any other attempt to expand the query contract are rejected; the browser cannot select another user's recommendation profile or request internal ML diagnostics.
+
+Supported camel-case query parameters are `mediaType`, `limit` (1–50), `context` (`home`, `media_detail`, or `other`), paired `seedMediaId`/`seedMediaType`, and strict boolean `excludeSeen`. Defaults are movie, 20, home, no seed, and seen exclusion enabled.
+
+### Reusable ML client and response validation
+
+`mlService.client.js` owns the FastAPI URL, strict 100–30000 ms timeout, snake-case parameter mapping, safe transport errors, and optional internal service header. Controllers never call Axios directly and never forward browser-controlled debug input.
+
+Express validates every ML response before persistence or return:
+
+- Nonblank strategy and object-shaped model versions with only the five approved fields.
+- At most the requested number of unique compound movie/TV identities.
+- Finite final scores in `[0,1]` and collaborative confidence in `[0,1]`.
+- Bounded source-model arrays and one-to-three nonblank explanation strings.
+- Sanitized display fields and a valid generation timestamp when supplied.
+
+Malformed, empty, timed-out, or unavailable ML responses enter fallback rather than leaking upstream errors.
+
+### Ordered fallback and impression persistence
+
+Fallback order is exact:
+
+1. For a detail seed, existing TMDB recommendations (`tmdb_fallback`).
+2. Local catalogue titles matching explicit genre/language preferences (`onboarding_preferences`).
+3. Local popular/quality catalogue titles (`cold_start_popular`).
+4. External TMDB popular titles only when the local catalogue cannot supply results (`tmdb_fallback`).
+
+Failure or emptiness at one fallback stage continues to the next. The final ML or fallback items are written once through the existing recommendation-impression service with authenticated user, page/seed context, strategy, model versions, ranks, final scores, and source provenance. Express returns that persisted recommendation ID so later impressions/clicks can reference the same batch. No empty impression is fabricated.
+
+Configuration:
+
+```text
+ML_SERVICE_URL=http://localhost:8000
+ML_INTERNAL_KEY=
+ML_REQUEST_TIMEOUT_MS=5000
+```
+
+Controllers return validation failures as 400, authentication failures as 401, and unexpected failures through the existing generic 500 response without upstream URLs, stack traces, database details, or internal keys.
+
+### Phase boundary
+
+Phase 24 makes recommendations safely available to authenticated React clients through Express. It does not yet render personalized sections or recommendation reasons in React; that user-facing work begins in Phase 25.

@@ -19,3 +19,7 @@ TagMyMovie is a dynamic movie review web application that empowers users to expl
 
 ---
 Explore, review, and engage with the world of movies and TV series through TagMyMovie. Create your account, share your thoughts, and dive into an immersive cinematic experience.
+
+## Recommendation services
+
+Authenticated clients use `GET /api/v1/recommendations` on the Express server. Express derives the user from the JWT, calls the private FastAPI service at `ML_SERVICE_URL`, validates its response, stores the recommendation impression, and returns the safe public payload. Start FastAPI on port 8000 before Express for ML results; Express automatically falls back to seed-title TMDB recommendations, explicit preferences, or popular content if ML is unavailable.
