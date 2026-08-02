@@ -104,6 +104,8 @@ The versioned hybrid ranker now calculates normalized content, collaborative, ex
 
 Before ranking, the versioned feedback policy excludes exact not-interested titles, low ratings, configured existing favourites/ratings, and the current detail-page seed. Removed favourites, recent recommendation clicks, and repeated impressions receive capped penalties. Similarity penalties require repeated dislike evidence for the same genre or person; a single disliked title never rejects a genre. Detail views are not treated as proof of watching.
 
+After hybrid scoring, deterministic MMR diversity re-ranking balances 80% relevance against 20% maximum similarity to selected items. Similarity considers genres, franchises/title series, directors, major cast, release decades, languages, popularity bands, and catalogue embedding cosine when available. It preserves hybrid scores, limits a franchise to two items while alternatives exist, and returns up to 20 recommendations.
+
 ## Tests
 
 ```bash

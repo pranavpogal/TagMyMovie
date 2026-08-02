@@ -10,6 +10,7 @@ from app.config import (
     CollaborativeDatasetSettings,
     CollaborativeInferenceSettings,
     CollaborativeModelSettings,
+    DiversitySettings,
     EmbeddingSettings,
     FeatureTextSettings,
     FeedbackPolicySettings,
@@ -230,3 +231,15 @@ def test_feedback_policy_configuration_is_versioned_and_bounded(
     monkeypatch.setenv("FEEDBACK_MAX_GENRE_PENALTY", "1.1")
     with pytest.raises(ConfigurationError, match="feedback penalties"):
         FeedbackPolicySettings.from_env()
+
+
+def test_diversity_configuration_preserves_a_unit_weight_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = DiversitySettings.from_env()
+    assert settings.version == "diversity-mmr-v1"
+    assert settings.output_limit == 20
+
+    monkeypatch.setenv("DIVERSITY_WEIGHT", "0.4")
+    with pytest.raises(ConfigurationError, match="sum to one"):
+        DiversitySettings.from_env()

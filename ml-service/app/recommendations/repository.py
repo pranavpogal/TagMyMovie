@@ -153,6 +153,27 @@ class CandidateRepository:
             preference.get("excludePreviouslyRated", True),
         )
 
+    def diversity_metadata(
+        self, item_keys: list[str]
+    ) -> dict[str, dict[str, Any]]:
+        identities = []
+        for key in set(item_keys):
+            try:
+                media_type, media_id = key.split(":", 1)
+            except ValueError:
+                continue
+            if media_type in {"movie", "tv"} and media_id:
+                identities.append({"mediaType": media_type, "tmdbId": media_id})
+        if not identities:
+            return {}
+        documents = self.catalogue.find(
+            {"$or": identities},
+            {"_id": 0, "mediaType": 1, "tmdbId": 1, "title": 1,
+             "genreIds": 1, "directors": 1, "cast": 1, "releaseYear": 1,
+             "originalLanguage": 1, "popularity": 1, "embedding": 1},
+        )
+        return {f"{item['mediaType']}:{item['tmdbId']}": item for item in documents}
+
 
 def _object_id(user_id: str | ObjectId) -> ObjectId:
     if isinstance(user_id, ObjectId):

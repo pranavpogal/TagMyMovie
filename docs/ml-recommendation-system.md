@@ -1338,3 +1338,51 @@ FEEDBACK_MAX_PEOPLE_PENALTY=0.15
 ### Phase boundary
 
 Phase 19 implements user-specific exclusions and bounded negative/exposure penalties. It does not yet reorder results for catalogue diversity; diversity re-ranking begins in Phase 20.
+
+## Phase 20: diversity re-ranking
+
+### Deterministic MMR selection
+
+`diversity-mmr-v1` runs after Phase 18 hybrid scoring and Phase 19 exclusions. It greedily selects the candidate maximizing:
+
+```text
+selectionScore = relevanceWeight × hybridScore
+                 - diversityWeight × maximumSimilarityToSelected
+```
+
+Defaults use `relevanceWeight=0.80` and `diversityWeight=0.20`. The original bounded hybrid score is never overwritten; the selection score and maximum similarity are retained only as internal diagnostics. The first choice is therefore the highest-relevance item. Subsequent choices may promote a slightly lower-ranked different title over a near-duplicate, but the relevance majority prevents diversity from randomizing or dominating the list.
+
+Candidate similarity is a weighted mean over evidence available for both items:
+
+- Genre-ID Jaccard overlap: 20%.
+- Exact franchise/collection or normalized title-series signal: 20%.
+- Director overlap: 10%.
+- Top-five cast overlap: 10%.
+- Same release decade: 8%.
+- Same original language: 7%.
+- Same logarithmic popularity band: 5%.
+- Positive catalogue-embedding cosine similarity: 20%.
+
+Missing evidence is omitted from the denominator instead of being treated as either identical or different. Catalogue metadata and embeddings are loaded by compound `mediaType:tmdbId`, so movie/TV identities are never rewritten or conflated.
+
+### Repetition controls and determinism
+
+At most two candidates from an explicit franchise/collection (or the conservative title-series fallback) are selected while another-franchise alternative remains. If the pool contains nothing else, capped items become eligible again rather than shortening the response. Popularity-band similarity helps prevent an all-blockbuster list without imposing a brittle popularity quota.
+
+Every tie resolves first by higher original hybrid relevance and finally by ascending compound key. There is no randomness. Output is capped only by the configured response limit.
+
+Configuration:
+
+```text
+DIVERSITY_VERSION=diversity-mmr-v1
+DIVERSITY_RELEVANCE_WEIGHT=0.80
+DIVERSITY_WEIGHT=0.20
+DIVERSITY_MAX_SAME_FRANCHISE=2
+RECOMMENDATION_OUTPUT_LIMIT=20
+```
+
+Relevance and diversity weights must sum to one. `DiversityRerankingService` enriches ranked candidates with current catalogue diversity metadata, runs MMR, and returns the reordered candidates, version, and internal per-item diagnostics. `HybridRankingService` exposes the diversity version internally while normal client serialization remains unchanged.
+
+### Phase boundary
+
+Phase 20 produces a relevant, deterministic, diversified list. It does not yet generate user-facing reasons for individual selections; rule-based recommendation explanations begin in Phase 21.

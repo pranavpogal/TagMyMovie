@@ -85,6 +85,8 @@ class HybridRankingResult:
     ranking_version: str
     feedback_policy_version: str | None = None
     excluded_reasons: Mapping[str, tuple[str, ...]] | None = None
+    diversity_version: str | None = None
+    diversity_diagnostics: Mapping[str, Any] | None = None
 
 
 class HybridRankingService:
@@ -95,12 +97,14 @@ class HybridRankingService:
         context_repository: Any,
         settings: HybridRankingSettings,
         feedback_service: Any | None = None,
+        diversity_service: Any | None = None,
     ) -> None:
         settings.validate()
         self.candidate_service = candidate_service
         self.context_repository = context_repository
         self.settings = settings
         self.feedback_service = feedback_service
+        self.diversity_service = diversity_service
 
     def recommend(
         self,
@@ -135,12 +139,21 @@ class HybridRankingService:
             settings=self.settings,
             now=now,
         )
+        diversity_version = None
+        diversity_diagnostics = None
+        if self.diversity_service is not None:
+            diversity = self.diversity_service.rerank(ranked)
+            ranked = diversity.ranked
+            diversity_version = diversity.version
+            diversity_diagnostics = diversity.diagnostics
         return HybridRankingResult(
             ranked=ranked,
             collaborative_confidence=generated.collaborative_confidence,
             ranking_version=self.settings.version,
             feedback_policy_version=feedback_version,
             excluded_reasons=excluded_reasons,
+            diversity_version=diversity_version,
+            diversity_diagnostics=diversity_diagnostics,
         )
 
 

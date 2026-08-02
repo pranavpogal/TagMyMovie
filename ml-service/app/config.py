@@ -312,6 +312,33 @@ class FeedbackPolicySettings:
 
 
 @dataclass(frozen=True)
+class DiversitySettings:
+    version: str = "diversity-mmr-v1"
+    relevance_weight: float = 0.80
+    diversity_weight: float = 0.20
+    maximum_same_franchise: int = 2
+    output_limit: int = 20
+
+    @classmethod
+    def from_env(cls) -> "DiversitySettings":
+        settings = cls(
+            version=os.getenv("DIVERSITY_VERSION", "diversity-mmr-v1").strip(),
+            relevance_weight=_float("DIVERSITY_RELEVANCE_WEIGHT", 0.80, 0),
+            diversity_weight=_float("DIVERSITY_WEIGHT", 0.20, 0),
+            maximum_same_franchise=_integer("DIVERSITY_MAX_SAME_FRANCHISE", 2, 1),
+            output_limit=_integer("RECOMMENDATION_OUTPUT_LIMIT", 20, 1),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.version:
+            raise ConfigurationError("DIVERSITY_VERSION is required")
+        if not math.isclose(self.relevance_weight + self.diversity_weight, 1.0):
+            raise ConfigurationError("diversity relevance and diversity weights must sum to one")
+
+
+@dataclass(frozen=True)
 class ProfileSettings:
     version: str
     decay_factor: float
