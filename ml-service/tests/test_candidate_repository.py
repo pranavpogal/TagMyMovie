@@ -113,3 +113,18 @@ def test_ranking_context_loads_normalized_explicit_preferences() -> None:
     assert context.preferred_genre_ids == {18, 28}
     assert context.preferred_languages == {"en"}
     assert context.preferred_release_periods == ((1990, 1999), (2020, None))
+
+
+def test_media_metadata_hydrates_compound_search_results() -> None:
+    catalogue = Collection([
+        {"mediaType": "movie", "tmdbId": "42", "title": "Mystery", "posterPath": "/p.jpg"},
+        {"mediaType": "tv", "tmdbId": "42", "title": "Series", "posterPath": "/tv.jpg"},
+    ])
+    repository = CandidateRepository(Database(catalogue, Collection()))
+
+    metadata = repository.media_metadata(["movie:42", "tv:42", "invalid"])
+
+    assert metadata["movie:42"]["title"] == "Mystery"
+    assert metadata["tv:42"]["posterPath"] == "/tv.jpg"
+    identities = catalogue.find_calls[0][0]["$or"]
+    assert {"mediaType": "movie", "tmdbId": "42"} in identities

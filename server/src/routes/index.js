@@ -5,6 +5,7 @@ import personRoute from "./person.route.js";
 import reviewRoute from "./review.route.js";
 import interactionRoute from "./interaction.route.js";
 import recommendationRoute from "./recommendation.route.js";
+import searchRoute from "./search.route.js";
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ router.use("/person", personRoute);
 router.use("/reviews", reviewRoute);
 router.use("/interactions", interactionRoute);
 router.use("/recommendations", recommendationRoute);
+router.use("/search", searchRoute);
 router.use("/:mediaType", mediaRoute);
 
 export default router;

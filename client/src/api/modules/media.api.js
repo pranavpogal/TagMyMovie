@@ -43,6 +43,17 @@ const mediaApi = {
       return { err };
     }
   },
+  semanticSearch: async ({ mediaType, query, language, genreIds, limit = 20 }) => {
+    try {
+      const params = new URLSearchParams({ mediaType, query, limit: String(limit) });
+      if (language) params.set("language", language);
+      if (genreIds?.length) params.set("genreIds", genreIds.join(","));
+      const response = await publicClient.get(`search/semantic?${params.toString()}`);
+      return { response };
+    } catch (err) {
+      return { err };
+    }
+  },
 };
 
 export default mediaApi;

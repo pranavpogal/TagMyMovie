@@ -39,6 +39,23 @@ export const createMlServiceClient = (options = {}) => {
         );
       }
     },
+    async semanticSearch(parameters) {
+      try {
+        const response = await client.get("/semantic-search", {
+          params: {
+            q: parameters.query,
+            limit: parameters.limit,
+            media_type: parameters.mediaType,
+            language: parameters.language || undefined,
+            genres: parameters.genreIds,
+          },
+          headers: { Accept: "application/json" },
+        });
+        return response.data;
+      } catch {
+        throw new MlServiceClientError("ML semantic search request failed");
+      }
+    },
   };
 };
 

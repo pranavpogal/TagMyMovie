@@ -23,3 +23,5 @@ Explore, review, and engage with the world of movies and TV series through TagMy
 ## Recommendation services
 
 Authenticated clients use `GET /api/v1/recommendations` on the Express server. Express derives the user from the JWT, calls the private FastAPI service at `ML_SERVICE_URL`, validates its response, stores the recommendation impression, and returns the safe public payload. Start FastAPI on port 8000 before Express for ML results; Express automatically falls back to seed-title TMDB recommendations, explicit preferences, or popular content if ML is unavailable.
+
+Semantic search is available through `GET /api/v1/search/semantic?query=...`. Optional `mediaType`, `language`, and comma-separated `genreIds` filters are forwarded by Express to the private ML service. The Search page keeps TMDB keyword search and exposes semantic search as a separate, clearly labelled mode.

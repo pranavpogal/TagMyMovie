@@ -115,7 +115,12 @@ class RecommendationRuntime:
     def semantic_search(self, query: str, filters: VectorFilters, limit: int) -> dict[str, Any]:
         vector = self.embedder.embed([query])[0]
         values = self.vector_store.search(vector, filters=filters, limit=limit, num_candidates=max(300, limit))
-        return self._simple_response("content_based", values, 0)
+        metadata = self.repository.media_metadata([value.key for value in values])
+        enriched = [
+            type(value)(value.tmdb_id, value.media_type, value.score, metadata.get(value.key, value.metadata))
+            for value in values
+        ]
+        return self._simple_response("content_based", enriched, 0)
 
     def _response(self, strategy, confidence, items, debug, result):
         status = self.model_status()
@@ -142,7 +147,12 @@ class RecommendationRuntime:
                               "collaborative": None, "profile": None, "ranking": None, "diversity": None},
             "collaborativeConfidence": confidence,
             "results": [{"mediaId": value.tmdb_id, "mediaType": value.media_type,
-                         "score": value.score, "sourceModels": ["content"], "reasons": []}
+                         "title": value.metadata.get("title", ""),
+                         "posterPath": value.metadata.get("posterPath", ""),
+                         "releaseYear": value.metadata.get("releaseYear"),
+                         "voteAverage": value.metadata.get("voteAverage", 0),
+                         "score": max(0.0, min(1.0, value.score)), "sourceModels": ["content"],
+                         "reasons": ["Matches the meaning of your search"]}
                         for value in values],
         }
 

@@ -37,6 +37,22 @@ test("ML client converts transport and timeout details to safe errors", async ()
   });
 });
 
+test("ML client maps semantic query and content filters", async () => {
+  let request;
+  const client = createMlServiceClient({
+    baseURL: "http://localhost:8000", timeout: 5000,
+    axiosInstance: { get: async (path, options) => { request = { path, options }; return { data: { results: [] } }; } },
+  });
+  await client.semanticSearch({
+    query: "quiet science fiction", mediaType: "tv", language: "en",
+    genreIds: [18, 9648], limit: 12,
+  });
+  assert.equal(request.path, "/semantic-search");
+  assert.equal(request.options.params.q, "quiet science fiction");
+  assert.equal(request.options.params.media_type, "tv");
+  assert.deepEqual(request.options.params.genres, [18, 9648]);
+});
+
 test("ML client rejects unsafe timeout configuration", () => {
   assert.throws(
     () => createMlServiceClient({ baseURL: "not-a-url", timeout: 999999 }),

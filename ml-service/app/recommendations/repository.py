@@ -95,6 +95,23 @@ class CandidateRepository:
         )
         return document.get("embedding") if document else None
 
+    def media_metadata(self, item_keys: list[str]) -> dict[str, dict[str, Any]]:
+        identities = []
+        for key in set(item_keys):
+            try:
+                media_type, media_id = key.split(":", 1)
+            except ValueError:
+                continue
+            if media_type in {"movie", "tv"} and media_id:
+                identities.append({"mediaType": media_type, "tmdbId": media_id})
+        if not identities:
+            return {}
+        documents = self.catalogue.find({"$or": identities}, PROJECTION)
+        return {
+            f"{item['mediaType']}:{item['tmdbId']}": item
+            for item in documents
+        }
+
     def ranking_context(self, user_id: str | ObjectId) -> RankingContext:
         preference = self.preferences.find_one(
             {"user": _object_id(user_id)},
