@@ -11,6 +11,7 @@ from scipy.sparse import csr_matrix
 from app.collaborative.mappings import MatrixMappings
 from app.collaborative.matrix_builder import CollaborativeDataset, MatrixSummary
 from app.collaborative.training import TrainingValidationError, train_and_promote
+from app.collaborative.model_artifacts import activate_model_version, write_model_version
 from app.config import CollaborativeModelSettings
 
 
@@ -72,6 +73,21 @@ def test_training_writes_version_and_atomically_promotes_current(tmp_path: Path)
     assert evaluation["passed"] is True
     assert (current / "user_mapping.json").exists()
     assert (current / "item_mapping.json").exists()
+
+
+def test_candidate_version_does_not_replace_current_until_activation(tmp_path: Path) -> None:
+    previous = tmp_path / "versions" / "previous"
+    previous.mkdir(parents=True)
+    (previous / "model.npz").write_bytes(b"previous")
+    (tmp_path / "current").symlink_to(Path("versions") / "previous")
+    candidate = write_model_version(
+        model=FakeModel(), mappings=dataset([[1, 1, 0], [0, 1, 1]]).mappings,
+        metadata={"modelVersion": "test"}, evaluation={"passed": True},
+        artifact_directory=tmp_path, version_name="candidate",
+    )
+    assert (tmp_path / "current").resolve() == previous.resolve()
+    activate_model_version(tmp_path, candidate)
+    assert (tmp_path / "current").resolve() == candidate.resolve()
 
 
 def test_failed_validation_does_not_create_or_replace_current(tmp_path: Path) -> None:

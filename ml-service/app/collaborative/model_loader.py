@@ -39,6 +39,14 @@ def load_current_model(artifact_directory: Path) -> LoadedCollaborativeModel:
     return _load_version(resolved)
 
 
+def load_model_version(version_directory: Path) -> LoadedCollaborativeModel:
+    try:
+        resolved = version_directory.resolve(strict=True)
+    except OSError as error:
+        raise CollaborativeArtifactError("candidate collaborative artifacts are missing") from error
+    return _load_version(resolved)
+
+
 @lru_cache(maxsize=4)
 def _load_version(current: Path) -> LoadedCollaborativeModel:
     required = {

@@ -118,6 +118,16 @@ uvicorn app.api.main:app --host 127.0.0.1 --port 8000
 
 FastAPI exposes `/health`, `/ready`, `/models/status`, `/recommendations/{user_id}`, `/similar/{media_type}/{media_id}`, and `/semantic-search`. Interactive local documentation is available at `/docs`. Debug recommendation output requires both `debug=true` and the private `X-Internal-Key` matching `ML_INTERNAL_DEBUG_KEY`; when no key is configured, debug access is disabled.
 
+## Offline model evaluation
+
+Run the reproducible time-based evaluation and guarded candidate promotion with:
+
+```bash
+python -m jobs.evaluate_models
+```
+
+The JSON report compares popularity, content-based, collaborative ALS, hybrid without diversity, and hybrid with diversity. It includes Recall, Hit Rate, NDCG, MAP, MRR, catalogue coverage, genre diversity, intra-list diversity, novelty, dataset counts, and cold-start counts. Users below `EVALUATION_MIN_INTERACTIONS_PER_USER` stay in training but are excluded from per-user metrics. Insufficient samples produce a warning and block promotion. A candidate version is written and reloaded before the `current` symlink is atomically changed; failed checks preserve the previous current model. Reports are saved under `artifacts/collaborative/evaluations/`.
+
 ## Tests
 
 ```bash
