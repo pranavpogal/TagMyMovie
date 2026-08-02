@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from typing import Any, Iterable, Mapping
 
@@ -83,6 +83,8 @@ class HybridRankingResult:
     ranked: tuple[RankedCandidate, ...]
     collaborative_confidence: float
     ranking_version: str
+    feedback_policy_version: str | None = None
+    excluded_reasons: Mapping[str, tuple[str, ...]] | None = None
 
 
 class HybridRankingService:
@@ -92,11 +94,13 @@ class HybridRankingService:
         candidate_service: Any,
         context_repository: Any,
         settings: HybridRankingSettings,
+        feedback_service: Any | None = None,
     ) -> None:
         settings.validate()
         self.candidate_service = candidate_service
         self.context_repository = context_repository
         self.settings = settings
+        self.feedback_service = feedback_service
 
     def recommend(
         self,
@@ -109,8 +113,23 @@ class HybridRankingService:
             user_id, seed_item_key=seed_item_key, now=now
         )
         context = self.context_repository.ranking_context(user_id)
+        candidates = generated.merged
+        feedback_version = None
+        excluded_reasons = None
+        if self.feedback_service is not None:
+            feedback = self.feedback_service.apply(
+                user_id, candidates, seed_item_key=seed_item_key, now=now
+            )
+            candidates = feedback.candidates
+            feedback_version = feedback.policy_version
+            excluded_reasons = feedback.excluded_reasons
+            context = replace(
+                context,
+                negative_penalties=feedback.negative_penalties,
+                seen_penalties=feedback.seen_penalties,
+            )
         ranked = rank_candidates(
-            generated.merged,
+            candidates,
             collaborative_confidence=generated.collaborative_confidence,
             context=context,
             settings=self.settings,
@@ -120,6 +139,8 @@ class HybridRankingService:
             ranked=ranked,
             collaborative_confidence=generated.collaborative_confidence,
             ranking_version=self.settings.version,
+            feedback_policy_version=feedback_version,
+            excluded_reasons=excluded_reasons,
         )
 
 

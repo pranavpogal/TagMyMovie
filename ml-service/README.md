@@ -102,6 +102,8 @@ Normalization uses tied rank percentiles independently within each source. Highe
 
 The versioned hybrid ranker now calculates normalized content, collaborative, explicit-preference, quality, popularity, freshness, seed-similarity, negative-penalty, and seen-penalty features. Collaborative weight grows continuously from zero to 0.40 with the Phase 15 confidence; content, preferences, and quality/popularity weights interpolate down so the positive weights always total one. Final ties use the compound item key. Public serialization omits the internal feature breakdown, while diagnostic serialization retains it for tests and troubleshooting.
 
+Before ranking, the versioned feedback policy excludes exact not-interested titles, low ratings, configured existing favourites/ratings, and the current detail-page seed. Removed favourites, recent recommendation clicks, and repeated impressions receive capped penalties. Similarity penalties require repeated dislike evidence for the same genre or person; a single disliked title never rejects a genre. Detail views are not treated as proof of watching.
+
 ## Tests
 
 ```bash

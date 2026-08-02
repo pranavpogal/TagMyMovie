@@ -12,6 +12,7 @@ from app.config import (
     CollaborativeModelSettings,
     EmbeddingSettings,
     FeatureTextSettings,
+    FeedbackPolicySettings,
     HybridRankingSettings,
     MovieLensSettings,
     ProfileSettings,
@@ -217,3 +218,15 @@ def test_hybrid_ranking_configuration_is_versioned_and_validated(
 
     with pytest.raises(ConfigurationError, match="sum to one"):
         HybridRankingSettings(new_user_content_weight=0.9).validate()
+
+
+def test_feedback_policy_configuration_is_versioned_and_bounded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    settings = FeedbackPolicySettings.from_env()
+    assert settings.version == "feedback-policy-v1"
+    assert settings.repeated_attribute_threshold == 2
+
+    monkeypatch.setenv("FEEDBACK_MAX_GENRE_PENALTY", "1.1")
+    with pytest.raises(ConfigurationError, match="feedback penalties"):
+        FeedbackPolicySettings.from_env()

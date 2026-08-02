@@ -7,6 +7,7 @@ from bson import ObjectId
 from pymongo.database import Database
 
 from app.recommendations.ranking import RankingContext
+from app.recommendations.feedback import FeedbackInputs
 
 
 PROJECTION = {
@@ -26,6 +27,7 @@ PROJECTION = {
 
 class CandidateRepository:
     def __init__(self, database: Database) -> None:
+        self.database = database
         self.catalogue = database["media_catalog"]
         self.preferences = database["userpreferences"]
 
@@ -114,6 +116,41 @@ class CandidateRepository:
                     preference.get("preferredReleasePeriods") or []
                 )
             ),
+        )
+
+    def feedback_inputs(self, user_id: str | ObjectId) -> FeedbackInputs:
+        user = _object_id(user_id)
+        interactions = tuple(
+            self.database["interactions"].find(
+                {"user": user},
+                {
+                    "_id": 0, "mediaId": 1, "mediaType": 1, "eventType": 1,
+                    "value": 1, "createdAt": 1,
+                },
+            ).sort("createdAt", 1)
+        )
+        preference = self.preferences.find_one(
+            {"user": user},
+            {"_id": 0, "excludePreviouslyFavourited": 1, "excludePreviouslyRated": 1},
+        ) or {}
+        identities = [
+            {"mediaType": item.get("mediaType"), "tmdbId": str(item.get("mediaId"))}
+            for item in interactions
+            if item.get("mediaType") in {"movie", "tv"} and item.get("mediaId")
+        ]
+        documents = self.catalogue.find(
+            {"$or": identities},
+            {"_id": 0, "mediaType": 1, "tmdbId": 1, "genreIds": 1,
+             "cast": 1, "directors": 1, "creators": 1},
+        ) if identities else []
+        metadata = {
+            f"{item['mediaType']}:{item['tmdbId']}": item for item in documents
+        }
+        return FeedbackInputs(
+            interactions,
+            metadata,
+            preference.get("excludePreviouslyFavourited", True),
+            preference.get("excludePreviouslyRated", True),
         )
 
 

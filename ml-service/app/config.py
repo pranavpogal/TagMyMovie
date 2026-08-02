@@ -260,6 +260,58 @@ class HybridRankingSettings:
 
 
 @dataclass(frozen=True)
+class FeedbackPolicySettings:
+    version: str = "feedback-policy-v1"
+    recent_click_days: int = 14
+    impression_window_days: int = 7
+    repeated_impression_threshold: int = 3
+    repeated_attribute_threshold: int = 2
+    removed_favourite_penalty: float = 0.60
+    recent_click_penalty: float = 0.35
+    repeated_impression_penalty: float = 0.50
+    maximum_genre_penalty: float = 0.25
+    maximum_people_penalty: float = 0.15
+
+    @classmethod
+    def from_env(cls) -> "FeedbackPolicySettings":
+        settings = cls(
+            version=os.getenv("FEEDBACK_POLICY_VERSION", "feedback-policy-v1").strip(),
+            recent_click_days=_integer("FEEDBACK_RECENT_CLICK_DAYS", 14, 1),
+            impression_window_days=_integer("FEEDBACK_IMPRESSION_WINDOW_DAYS", 7, 1),
+            repeated_impression_threshold=_integer(
+                "FEEDBACK_REPEATED_IMPRESSION_THRESHOLD", 3, 2
+            ),
+            repeated_attribute_threshold=_integer(
+                "FEEDBACK_REPEATED_ATTRIBUTE_THRESHOLD", 2, 2
+            ),
+            removed_favourite_penalty=_float(
+                "FEEDBACK_REMOVED_FAVOURITE_PENALTY", 0.60, 0
+            ),
+            recent_click_penalty=_float("FEEDBACK_RECENT_CLICK_PENALTY", 0.35, 0),
+            repeated_impression_penalty=_float(
+                "FEEDBACK_REPEATED_IMPRESSION_PENALTY", 0.50, 0
+            ),
+            maximum_genre_penalty=_float("FEEDBACK_MAX_GENRE_PENALTY", 0.25, 0),
+            maximum_people_penalty=_float("FEEDBACK_MAX_PEOPLE_PENALTY", 0.15, 0),
+        )
+        settings.validate()
+        return settings
+
+    def validate(self) -> None:
+        if not self.version:
+            raise ConfigurationError("FEEDBACK_POLICY_VERSION is required")
+        penalties = (
+            self.removed_favourite_penalty,
+            self.recent_click_penalty,
+            self.repeated_impression_penalty,
+            self.maximum_genre_penalty,
+            self.maximum_people_penalty,
+        )
+        if any(value < 0 or value > 1 for value in penalties):
+            raise ConfigurationError("feedback penalties must be between zero and one")
+
+
+@dataclass(frozen=True)
 class ProfileSettings:
     version: str
     decay_factor: float

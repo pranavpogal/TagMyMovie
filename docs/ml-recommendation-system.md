@@ -1295,3 +1295,46 @@ Configuration validation requires bounded weights, positive decay/count settings
 ### Phase boundary
 
 Phase 18 calculates and orders the hybrid score. It does not yet infer exact-item exclusions, negative similarity evidence, or repeated-exposure penalties from interaction history; those rules begin in Phase 19.
+
+## Phase 19: negative feedback and exclusions
+
+### Exact-item policy
+
+`feedback-policy-v1` runs after candidate generation/normalization and before hybrid scoring. It uses compound identities and newest rating/favourite state. Exact exclusions are:
+
+- Every title marked `not_interested`.
+- Ratings from 1 through 4, regardless of the general rated-title preference.
+- Previously rated titles when `excludePreviouslyRated` is enabled.
+- Current favourites when `excludePreviouslyFavourited` is enabled.
+- The current seed title on media-detail requests.
+
+A newest `favourite_remove` replaces an older add and receives a bounded negative penalty rather than being treated as a current favourite. Preference flags can retain positive rated/favourite items, but cannot override explicit not-interested or low-rating exclusions.
+
+### Exposure and controlled similarity penalties
+
+Recent recommendation clicks receive a seen penalty for 14 days. Three or more impressions within seven days receive a repeated-exposure penalty. Old, invalid, and future-dated events do not count. A `detail_view` creates neither an exclusion nor watched/seen evidence.
+
+Disliked-title evidence consists of not-interested titles, ratings 1–4, and newest favourite removals. Candidate genres, cast, directors, and creators are penalized only when the same attribute appears across at least two distinct disliked titles. Genre and people contributions are separately capped and the combined normalized negative input cannot exceed one. This avoids rejecting an entire genre or a person because of one title.
+
+The Phase 18 ranker converts normalized negative and seen inputs through its own maximum deductions, keeping final ranking stable. Exact exclusions never reach ranking.
+
+Configuration:
+
+```text
+FEEDBACK_POLICY_VERSION=feedback-policy-v1
+FEEDBACK_RECENT_CLICK_DAYS=14
+FEEDBACK_IMPRESSION_WINDOW_DAYS=7
+FEEDBACK_REPEATED_IMPRESSION_THRESHOLD=3
+FEEDBACK_REPEATED_ATTRIBUTE_THRESHOLD=2
+FEEDBACK_REMOVED_FAVOURITE_PENALTY=0.60
+FEEDBACK_RECENT_CLICK_PENALTY=0.35
+FEEDBACK_REPEATED_IMPRESSION_PENALTY=0.50
+FEEDBACK_MAX_GENRE_PENALTY=0.25
+FEEDBACK_MAX_PEOPLE_PENALTY=0.15
+```
+
+`FeedbackPolicyService` loads persisted interaction/preference evidence and returns retained candidates, normalized penalty maps, deterministic exclusion reasons, and its policy version. `HybridRankingService` injects those penalties and ranks only retained candidates. Exclusion diagnostics remain internal rather than appearing in normal candidate serialization.
+
+### Phase boundary
+
+Phase 19 implements user-specific exclusions and bounded negative/exposure penalties. It does not yet reorder results for catalogue diversity; diversity re-ranking begins in Phase 20.
