@@ -128,6 +128,16 @@ python -m jobs.evaluate_models
 
 The JSON report compares popularity, content-based, collaborative ALS, hybrid without diversity, and hybrid with diversity. It includes Recall, Hit Rate, NDCG, MAP, MRR, catalogue coverage, genre diversity, intra-list diversity, novelty, dataset counts, and cold-start counts. Users below `EVALUATION_MIN_INTERACTIONS_PER_USER` stay in training but are excluded from per-user metrics. Insufficient samples produce a warning and block promotion. A candidate version is written and reloaded before the `current` symlink is atomically changed; failed checks preserve the previous current model. Reports are saved under `artifacts/collaborative/evaluations/`.
 
+## Online feedback metrics
+
+Generate application-level recommendation feedback metrics with:
+
+```bash
+python -m jobs.generate_online_metrics
+```
+
+The report includes item-level recommendation click-through, favourite-add, rating-submission and not-interested rates; recommended-catalogue coverage; strategy usage; and average clicked rank. Direct recommendation IDs are preferred. Favourite, rating and not-interested actions without an ID may be attributed to the most recent matching user/item impression within `ONLINE_METRICS_ATTRIBUTION_HOURS`. Duplicate actions do not inflate a recommendation/item numerator. Reports are saved under `ONLINE_METRICS_REPORT_DIRECTORY` and explicitly describe the results as observational rather than causal.
+
 ## Tests
 
 ```bash
